@@ -3,6 +3,7 @@ import { useAuth } from "./hooks/useAuth.js";
 import { NavBar } from "./components/NavBar.jsx";
 import { PrivateRoute } from "./components/PrivateRoute.jsx";
 import { Spinner } from "./components/Spinner.jsx";
+import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { AuthPage } from "./pages/AuthPage.jsx";
 import { MonthOverviewPage } from "./pages/MonthOverviewPage.jsx";
 import { YearOverviewPage } from "./pages/YearOverviewPage.jsx";
@@ -97,7 +98,9 @@ function AppContent() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }
