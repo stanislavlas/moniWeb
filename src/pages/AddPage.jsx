@@ -6,35 +6,58 @@ import { Spinner } from "../components/Spinner.jsx";
 import { useCategories } from "../hooks/useCategories.js";
 import { createEntry, updateEntry } from "../services/entries.js";
 
-export function AddPage() {
+export function AddPage({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const editing  = location.state?.entry ?? null; // passed via navigation state when editing
+  const editing  = location.state?.entry ?? null;
 
   const { categories, load: loadCats } = useCategories();
   useEffect(() => { loadCats(); }, [loadCats]);
 
-  const [type, setType]           = useState(editing?.type       ?? "expense");
-  const [amount, setAmount]       = useState(editing ? String(editing.amount) : "");
-  const [note, setNote]           = useState(editing?.note        ?? "");
-  const [category, setCategory]   = useState(editing?.category    ?? null);
-  const [date, setDate]           = useState(editing?.date        ?? new Date().toISOString().slice(0, 10));
-  const [necessity, setNecessity] = useState(editing?.necessity   ?? "want");
+  // API returns type as uppercase ("EXPENSE"/"INCOME"), UI uses lowercase for display
+  const editingType = editing?.type ? editing.type.toLowerCase() : "expense";
+  const editingNecessity = editing?.necessity ? editing.necessity.toLowerCase() : "want";
+
+  const [type, setType]           = useState(editingType);
+  // editing.amount is { value: string, currency: string }
+  const [amount, setAmount]       = useState(editing ? String(parseFloat(editing.amount?.value ?? editing.amount ?? "")) : "");
+  const [note, setNote]           = useState(editing?.note ?? "");
+  // editing.categoryId is a plain UUID string; find matching category object
+  const [categoryId, setCategoryId] = useState(editing?.categoryId ?? null);
+  const [date, setDate]           = useState(editing?.date ?? new Date().toISOString().slice(0, 10));
+  const [necessity, setNecessity] = useState(editingNecessity);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
 
+  // Derive selected category object for CategoryChips highlight
+  const selectedCategory = categories.find(c => c.categoryId === categoryId) ?? null;
+
+  const currency = user?.currency ?? "EUR";
+
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!amount || isNaN(parseFloat(amount))) { setError("Enter a valid amount"); return; }
+    const parsedAmount = parseFloat(amount);
+    if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      setError("Enter a valid amount");
+      return;
+    }
+    if (!categoryId) {
+      setError("Please select a category");
+      return;
+    }
     setLoading(true); setError(null);
     try {
       const payload = {
-        type,
-        amount: parseFloat(amount),
-        note: note || undefined,
-        category: category ?? undefined,
+        // API expects amount as { value: string, currency: string }
+        amount:     { value: String(parsedAmount), currency },
+        categoryId: categoryId,
         date,
-        necessity: type === "expense" ? necessity : undefined,
+        name:       note || type,
+        note:       note || "",
+        // API expects uppercase: "EXPENSE" | "INCOME" | "INVESTMENT"
+        type:       type.toUpperCase(),
+        // API expects uppercase: "NEED" | "WANT"
+        necessity:  type === "expense" ? (necessity === "necessity" ? "NEED" : "WANT") : "WANT",
       };
       if (editing) {
         await updateEntry(editing.entryId, payload);
@@ -109,7 +132,11 @@ export function AddPage() {
         {categories.length > 0 && (
           <div>
             <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Category</p>
-            <CategoryChips categories={categories} selected={category} onSelect={setCategory} />
+            <CategoryChips
+              categories={categories}
+              selected={selectedCategory}
+              onSelect={cat => setCategoryId(cat.categoryId)}
+            />
           </div>
         )}
 
@@ -118,18 +145,21 @@ export function AddPage() {
           <div>
             <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Type</p>
             <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-neutral-700">
-              {["necessity", "want"].map(n => (
+              {[
+                { value: "necessity", label: "Necessity" },
+                { value: "want",      label: "Want"      },
+              ].map(n => (
                 <button
-                  key={n}
+                  key={n.value}
                   type="button"
-                  onClick={() => setNecessity(n)}
-                  className={`flex-1 py-2.5 text-sm font-semibold transition-colors capitalize ${
-                    necessity === n
+                  onClick={() => setNecessity(n.value)}
+                  className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
+                    necessity === n.value
                       ? "bg-brand-amber text-white"
                       : "bg-gray-50 dark:bg-neutral-800 text-gray-500"
                   }`}
                 >
-                  {n}
+                  {n.label}
                 </button>
               ))}
             </div>

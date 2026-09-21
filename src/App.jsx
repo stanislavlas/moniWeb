@@ -62,7 +62,7 @@ function AppContent() {
         />
         <Route
           path="/add"
-          element={<PrivateRoute isAuthenticated={isAuthenticated}><AddPage /></PrivateRoute>}
+          element={<PrivateRoute isAuthenticated={isAuthenticated}><AddPage user={user} /></PrivateRoute>}
         />
         <Route
           path="/history"

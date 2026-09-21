@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { getDashboard } from "../services/dashboard.js";
+import { listEntries } from "../services/entries.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 
 const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function amt(entry) {
+  return parseFloat(entry.amount?.value ?? entry.amount ?? 0);
+}
 
 export function YearOverviewPage() {
   const currentYear = new Date().getFullYear();
@@ -19,15 +23,15 @@ export function YearOverviewPage() {
       try {
         const results = await Promise.all(
           Array.from({ length: 12 }, (_, i) => {
-            const m = String(i + 1).padStart(2, "0");
-            return getDashboard(`${year}-${m}`).catch(() => null);
+            const ym = `${year}-${String(i + 1).padStart(2, "0")}`;
+            return listEntries(ym).catch(() => []);
           })
         );
         setMonthly(
-          results.map((d, i) => ({
+          results.map((entries, i) => ({
             month:    MONTHS_SHORT[i],
-            income:   d?.totalIncome   ?? 0,
-            expenses: d?.totalExpenses ?? 0,
+            income:   entries.filter(e => e.type === "INCOME")   .reduce((s, e) => s + amt(e), 0),
+            expenses: entries.filter(e => e.type === "EXPENSE")  .reduce((s, e) => s + amt(e), 0),
           }))
         );
       } catch (e) {

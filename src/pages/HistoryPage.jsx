@@ -69,7 +69,7 @@ export function HistoryPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`text-base font-bold ${entry.type === "income" ? "text-brand-green" : "text-brand-red"}`}>
-                  {entry.type === "income" ? "+" : "−"}€{parseFloat(entry.amount).toFixed(2)}
+                  {entry.type === "INCOME" ? "+" : "−"}€{parseFloat(entry.amount?.value ?? entry.amount ?? 0).toFixed(2)}
                 </span>
                 {getCatLabel(entry.category) && (
                   <span className="text-xs bg-gray-100 dark:bg-neutral-800 text-gray-500 rounded-full px-2 py-0.5">
