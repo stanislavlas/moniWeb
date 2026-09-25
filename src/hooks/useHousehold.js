@@ -91,22 +91,22 @@ export function useHousehold() {
     if (fresh) setSent(fresh);
   }, []);
 
-  const removeMember = useCallback(async (householdId, uid) => {
+  const removeMember = useCallback(async (uid) => {
     await apiRemoveMember(uid);
     setHousehold(prev => prev ? { ...prev, members: prev.members.filter(m => m.userId !== uid) } : prev);
   }, []);
 
-  const leave = useCallback(async (householdId) => {
+  const leave = useCallback(async () => {
     await apiLeave();
     setHousehold(null);
   }, []);
 
-  const deleteHousehold = useCallback(async (householdId) => {
+  const deleteHousehold = useCallback(async () => {
     await apiDelete();
     setHousehold(null);
   }, []);
 
-  const rename = useCallback(async (householdId, name) => {
+  const rename = useCallback(async (name) => {
     const data = await apiRename(name);
     setHousehold(prev => prev ? { ...prev, name: data?.name ?? name } : prev);
   }, []);
