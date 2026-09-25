@@ -1,5 +1,6 @@
-import { useEffect, useState, useMemo } from "react";
-import { listEntries } from "../services/entries.js";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { listEntriesByYear, listActiveYears } from "../services/entries.js";
+import { entryEvents } from "../utils/entryEvents.js";
 import { useCategories } from "../hooks/useCategories.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
@@ -14,32 +15,82 @@ export function YearOverviewPage({ user, showHousehold = false }) {
 
   const [year, setYear]                   = useState(currentYear);
   const [selectedMonthIndex, setMonth]    = useState(currentMonthIndex);
-  const [monthlyData, setMonthly]         = useState([]);
-  const [allEntries, setAllEntries]       = useState([]);
-  const [allEntriesLoading, setAllEntriesLoading] = useState(true);
-  const [error, setError]                 = useState(null);
+  // Cache: { [year]: { entries, loading, error } }
+  const [yearCache, setYearCache]         = useState({});
+  // Seed with current year; replaced by API response
+  const [activeYears, setActiveYears]     = useState([currentYear]);
+  // Tracks years already fetched or in-flight — avoids dep on yearCache inside fetchYear
+  const fetchedYears                      = useRef(new Set());
 
   const { categories, load: loadCats, colorMap } = useCategories();
   useEffect(() => { loadCats(); }, [loadCats]);
 
-  // Fetch all entries once — used both for year discovery and monthly breakdown
+  // Fetch the distinct years that have data; always include current year
   useEffect(() => {
     let cancelled = false;
-    setAllEntriesLoading(true);
-    listEntries(null, showHousehold)
-      .then(data => { if (!cancelled) setAllEntries(Array.isArray(data) ? data : []); })
-      .catch(() => { if (!cancelled) setAllEntries([]); })
-      .finally(() => { if (!cancelled) setAllEntriesLoading(false); });
+    listActiveYears(showHousehold)
+      .then(data => {
+        if (cancelled) return;
+        const all = new Set([currentYear, ...(Array.isArray(data) ? data : [])]);
+        setActiveYears([...all].sort((a, b) => b - a));
+      })
+      .catch(() => { /* keep seed */ });
     return () => { cancelled = true; };
+  }, [showHousehold, currentYear]);
+
+  // Fetch entries for the selected year on demand — stable callback, no yearCache dep
+  const fetchYear = useCallback(async (y) => {
+    if (fetchedYears.current.has(y)) return; // already fetched or in-flight
+    fetchedYears.current.add(y);
+    setYearCache(prev => ({ ...prev, [y]: { entries: [], loading: true, error: null } }));
+    try {
+      const data = await listEntriesByYear(y, showHousehold);
+      setYearCache(prev => ({ ...prev, [y]: { entries: Array.isArray(data) ? data : [], loading: false, error: null } }));
+    } catch (err) {
+      fetchedYears.current.delete(y); // allow retry on error
+      setYearCache(prev => ({ ...prev, [y]: { entries: [], loading: false, error: err.message } }));
+    }
   }, [showHousehold]);
 
-  // Derive monthly breakdown from already-fetched entries — no extra requests
+  useEffect(() => { fetchYear(year); }, [year, fetchYear]);
+
+  // Invalidate a year's cache when an entry in that year is mutated
   useEffect(() => {
-    const yearEntries = allEntries.filter(e => e.date?.startsWith(String(year)));
-    setMonthly(Array.from({ length: 12 }, (_, i) => {
+    return entryEvents.subscribe(date => {
+      if (!date) return;
+      const affectedYear = parseInt(date.slice(0, 4), 10);
+      fetchedYears.current.delete(affectedYear);
+      setYearCache(prev => {
+        if (!prev[affectedYear]) return prev;
+        const next = { ...prev };
+        delete next[affectedYear];
+        return next;
+      });
+      // Ensure the year appears in the scroller if it wasn't there
+      setActiveYears(prev =>
+        prev.includes(affectedYear) ? prev : [...prev, affectedYear].sort((a, b) => b - a)
+      );
+    });
+  }, []);
+
+  // Reset everything when household toggle changes
+  useEffect(() => {
+    setYearCache({});
+    setActiveYears([currentYear]);
+    fetchedYears.current = new Set();
+  }, [showHousehold, currentYear]);
+
+  const currentYearData = yearCache[year] ?? { entries: [], loading: true, error: null };
+  const allEntries = currentYearData.entries;
+  const allEntriesLoading = currentYearData.loading;
+  const error = currentYearData.error;
+
+  // Derive monthly breakdown from cached entries — no extra requests
+  const monthlyData = useMemo(() => (
+    Array.from({ length: 12 }, (_, i) => {
       const mo = String(i + 1).padStart(2, "0");
       const ym = `${year}-${mo}`;
-      const monthEntries = yearEntries.filter(e => e.date?.startsWith(ym));
+      const monthEntries = allEntries.filter(e => e.date?.startsWith(ym));
       return {
         month:    MONTHS_SHORT[i],
         index:    i,
@@ -48,15 +99,8 @@ export function YearOverviewPage({ user, showHousehold = false }) {
         invested: monthEntries.filter(e => e.type === "INVESTMENT").reduce((s, e) => s + getAmount(e), 0),
         entries:  monthEntries,
       };
-    }));
-  }, [year, allEntries]);
-
-  // Available years derived from all entry dates + current year (data-driven, like mobile)
-  const availableYears = useMemo(() => {
-    const s = new Set([currentYear]);
-    allEntries.forEach(e => { if (e.date) s.add(parseInt(e.date.slice(0, 4), 10)); });
-    return [...s].sort((a, b) => b - a);
-  }, [allEntries, currentYear]);
+    })
+  ), [year, allEntries]);
 
   // Annual totals
   const yearTotals = useMemo(() => ({
@@ -67,21 +111,14 @@ export function YearOverviewPage({ user, showHousehold = false }) {
 
   const yearBalance = yearTotals.income - yearTotals.expenses - yearTotals.invested;
 
-  // Annual needs/wants
-  const yearNecessity = useMemo(() => {
-    const all = monthlyData.flatMap(m => m.entries);
-    return sumNecessity(all);
-  }, [monthlyData]);
+  const yearNecessity = useMemo(() => sumNecessity(monthlyData.flatMap(m => m.entries)), [monthlyData]);
 
-  // Bar max (per-bar, not stacked — like mobile which uses max of individual bars)
   const barMax = useMemo(() =>
     Math.max(...monthlyData.map(m => Math.max(m.income, m.expenses, m.invested)), 1),
   [monthlyData]);
 
-  // Selected month
   const selData = monthlyData[selectedMonthIndex] ?? null;
   const selEntries = selData?.entries ?? [];
-
   const selNecessity = useMemo(() => sumNecessity(selEntries), [selEntries]);
 
   return (
@@ -93,10 +130,10 @@ export function YearOverviewPage({ user, showHousehold = false }) {
         <h1 className="text-xl font-bold">{year}</h1>
       </div>
 
-      {/* Year scroller — no scrollbar */}
+      {/* Year scroller */}
       <div className="overflow-x-auto no-scrollbar pb-1">
         <div className="flex gap-2 w-max px-1">
-          {(availableYears.length > 0 ? availableYears : [currentYear, currentYear - 1]).map(y => (
+          {activeYears.map(y => (
             <button
               key={y}
               onClick={() => { setYear(y); setMonth(y === currentYear ? currentMonthIndex : 0); }}
@@ -118,7 +155,7 @@ export function YearOverviewPage({ user, showHousehold = false }) {
       <div className="text-center py-4">
         <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Annual Balance</p>
         <p className={`text-5xl font-bold font-mono ${yearBalance >= 0 ? "text-brand-green" : "text-brand-red"}`}>
-        {formatCurrency(yearBalance, currency)}
+          {formatCurrency(yearBalance, currency)}
         </p>
       </div>
 
@@ -129,7 +166,7 @@ export function YearOverviewPage({ user, showHousehold = false }) {
       {yearTotals.expenses > 0 && (
         <div className="space-y-2">
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Expense breakdown</h2>
-          <NecessityBreakdown needs={yearNecessity.needs} wants={yearNecessity.wants} total={yearTotals.expenses} currency={currency} />
+          <NecessityBreakdown necessary={yearNecessity.necessary} optional={yearNecessity.optional} total={yearTotals.expenses} currency={currency} />
         </div>
       )}
 
@@ -137,7 +174,7 @@ export function YearOverviewPage({ user, showHousehold = false }) {
         <div className="flex justify-center py-12"><Spinner size={10} /></div>
       ) : (
         <>
-          {/* Bar chart — side-by-side columns per month (like mobile) */}
+          {/* Bar chart */}
           <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4">
             <div className="flex items-end gap-0.5" style={{ height: "100px" }}>
               {monthlyData.map((m, i) => {
@@ -151,7 +188,6 @@ export function YearOverviewPage({ user, showHousehold = false }) {
                     onClick={() => setMonth(i)}
                     className="flex-1 flex flex-col items-center"
                   >
-                    {/* 3 side-by-side sub-bars */}
                     <div className="w-full flex items-end gap-[1px]" style={{ height: "80px" }}>
                       <div style={{ flex: 1, height: `${incH}%`, backgroundColor: "#1D9E75", opacity: isActive ? 1 : 0.3, borderRadius: "2px 2px 0 0", minHeight: m.income   > 0 ? "2px" : "0" }} />
                       <div style={{ flex: 1, height: `${expH}%`, backgroundColor: "#D85A30", opacity: isActive ? 1 : 0.3, borderRadius: "2px 2px 0 0", minHeight: m.expenses > 0 ? "2px" : "0" }} />
@@ -186,7 +222,6 @@ export function YearOverviewPage({ user, showHousehold = false }) {
                 {MONTHS_SHORT[selData.index]} {year}
               </p>
 
-              {/* Month balance */}
               <div className="text-center py-3">
                 <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Balance</p>
                 <p className={`text-4xl font-bold font-mono ${
@@ -196,12 +231,10 @@ export function YearOverviewPage({ user, showHousehold = false }) {
                 </p>
               </div>
 
-              {/* Month pills */}
               <SummaryPills income={selData.income} expense={selData.expenses} investment={selData.invested} currency={currency} />
 
-              {/* Month expense breakdown */}
               {selData.expenses > 0 && (
-                <NecessityBreakdown needs={selNecessity.needs} wants={selNecessity.wants} total={selData.expenses} currency={currency} />
+                <NecessityBreakdown necessary={selNecessity.necessary} optional={selNecessity.optional} total={selData.expenses} currency={currency} />
               )}
             </div>
           )}

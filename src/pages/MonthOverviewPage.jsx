@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
-import { useEntries } from "../hooks/useEntries.js";
 import { useCategories } from "../hooks/useCategories.js";
+import { useMonthCache } from "../hooks/useMonthCache.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 import { NecessityBreakdown } from "../components/NecessityBreakdown.jsx";
@@ -9,19 +9,16 @@ import { MONTHS_SHORT, getAmount, formatCurrency, sumEntriesByType, sumNecessity
 
 export function MonthOverviewPage({ user, showHousehold = false }) {
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
-  const { entries, loading, error, load } = useEntries();
   const { categories, load: loadCats, colorMap } = useCategories();
+  const { activeMonths, monthCache, fetchMonth } = useMonthCache(showHousehold);
 
-  useEffect(() => { load(filterMonth, showHousehold); }, [filterMonth, showHousehold, load]);
   useEffect(() => { loadCats(); }, [loadCats]);
+  useEffect(() => { fetchMonth(filterMonth); }, [filterMonth, fetchMonth]);
 
-  // Build month list from entry dates already loaded + current month
-  const months = useMemo(() => {
-    const keys = new Set();
-    keys.add(new Date().toISOString().slice(0, 7));
-    entries.forEach(e => { if (e.date) keys.add(e.date.slice(0, 7)); });
-    return Array.from(keys).sort((a, b) => b.localeCompare(a));
-  }, [entries]);
+  const currentData = monthCache[filterMonth] ?? { entries: [], loading: true, error: null };
+  const entries     = currentData.entries;
+  const loading     = currentData.loading;
+  const error       = currentData.error;
 
   const [year, month] = filterMonth.split("-");
   const monthLabel = `${MONTHS_SHORT[parseInt(month, 10) - 1]} ${year}`;
@@ -38,7 +35,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
 
   const catBreakdown = useMemo(() => {
     const map = {};
-    entries.forEach(e => {
+    entries.filter(e => e.type === "EXPENSE").forEach(e => {
       const id = e.categoryId;
       if (!id) return;
       map[id] = (map[id] || 0) + getAmount(e);
@@ -53,6 +50,19 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
         return { catId, label: icon ? `${icon} ${name}` : name, total };
       });
   }, [entries, categories]);
+
+  const memberBreakdown = useMemo(() => {
+    if (!showHousehold) return [];
+    const map = {};
+    entries.forEach(e => {
+      if (!e.authorName) return;
+      if (e.type !== "INCOME" && e.type !== "EXPENSE") return;
+      if (!map[e.authorName]) map[e.authorName] = { income: 0, expense: 0 };
+      if (e.type === "INCOME")  map[e.authorName].income  += getAmount(e);
+      if (e.type === "EXPENSE") map[e.authorName].expense += getAmount(e);
+    });
+    return Object.entries(map);
+  }, [entries, showHousehold]);
 
   const catMax = catBreakdown[0]?.total || 1;
   const summaryMax = Math.max(totals.income, totals.expense, totals.investment, 1);
@@ -69,7 +79,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
       {/* Month scroller — no scrollbar */}
       <div className="overflow-x-auto no-scrollbar pb-1">
         <div className="flex gap-2 w-max px-1">
-          {months.map(m => {
+          {activeMonths.map(m => {
             const [y, mo] = m.split("-");
             const isActive = m === filterMonth;
             return (
@@ -107,7 +117,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
           {/* Pills — Income / Expenses / Invested */}
           <SummaryPills income={totals.income} expense={totals.expense} investment={totals.investment} currency={currency} />
 
-          {/* Summary bars (like mobile) */}
+          {/* Summary bars */}
           <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Summary</h2>
             {[
@@ -136,7 +146,26 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
           {totals.expense > 0 && (
             <div className="space-y-2">
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Expense breakdown</h2>
-              <NecessityBreakdown needs={necessityTotals.needs} wants={necessityTotals.wants} total={totals.expense} currency={currency} />
+              <NecessityBreakdown necessary={necessityTotals.necessary} optional={necessityTotals.optional} total={totals.expense} currency={currency} />
+            </div>
+          )}
+
+          {/* By member — household only */}
+          {memberBreakdown.length > 0 && (
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">By member</h2>
+              {memberBreakdown.map(([name, t]) => (
+                <div key={name} className="flex items-center gap-3 py-1">
+                  <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-bold text-green-700 dark:text-green-400">{name.charAt(0).toUpperCase()}</span>
+                  </div>
+                  <span className="text-sm text-gray-700 dark:text-gray-200 flex-1">{name}</span>
+                  <div className="flex flex-col items-end">
+                    {t.income  > 0 && <span className="text-xs font-mono text-brand-green">+{fmt(t.income)}</span>}
+                    {t.expense > 0 && <span className="text-xs font-mono text-brand-red">−{fmt(t.expense)}</span>}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 

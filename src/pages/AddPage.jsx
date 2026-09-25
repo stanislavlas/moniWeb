@@ -8,6 +8,7 @@ import { useCurrencies } from "../hooks/useCurrencies.js";
 import { createEntry, updateEntry } from "../services/entries.js";
 import { INPUT_CLASS } from "../utils/styles.js";
 import { fromApiNecessity } from "../utils/money.js";
+import { entryEvents } from "../utils/entryEvents.js";
 
 export function AddPage({ user }) {
   const navigate = useNavigate();
@@ -74,14 +75,16 @@ export function AddPage({ user }) {
         note:       note || "",
         type:       type.toUpperCase(),
         necessity:  type === "expense"
-          ? (necessity === "necessary" ? "NEED" : "WANT")
-          : "WANT",
+          ? (necessity === "necessary" ? "NECESSARY" : "OPTIONAL")
+          : "NECESSARY",
       };
       if (editing) {
         await updateEntry(editing.entryId, payload);
+        entryEvents.emit(date);
         navigate("/history");
       } else {
         await createEntry(payload);
+        entryEvents.emit(date);
         setAmount("");
         setNote("");
         setDate(new Date().toISOString().slice(0, 10));

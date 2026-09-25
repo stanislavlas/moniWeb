@@ -1,4 +1,4 @@
-const API_BASE = () => import.meta.env.VITE_API_BASE_URL || "";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const KEY_ACCESS  = "moni_access_token";
 const KEY_REFRESH = "moni_refresh_token";
@@ -31,8 +31,12 @@ function isExpired(token) {
 
 export async function refreshAccessToken() {
   const refreshToken = getRefreshToken();
-  if (!refreshToken) throw Object.assign(new Error("No refresh token"), { code: "AUTH_EXPIRED" });
-  const res = await fetch(`${API_BASE()}/api/auth/refresh`, {
+  if (!refreshToken) {
+    clearTokens();
+    window.dispatchEvent(new Event("auth:expired"));
+    throw Object.assign(new Error("No refresh token"), { code: "AUTH_EXPIRED" });
+  }
+  const res = await fetch(`${API_BASE}/api/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken }),
@@ -40,10 +44,11 @@ export async function refreshAccessToken() {
   const data = await res.json();
   if (!res.ok) {
     clearTokens();
+    window.dispatchEvent(new Event("auth:expired"));
     throw Object.assign(new Error("Session expired"), { code: "AUTH_EXPIRED" });
   }
   localStorage.setItem(KEY_ACCESS,  data.accessToken);
-  localStorage.setItem(KEY_REFRESH, data.refreshToken);
+  if (data.refreshToken) localStorage.setItem(KEY_REFRESH, data.refreshToken);
   return data.accessToken;
 }
 
@@ -52,7 +57,7 @@ export async function authRequest(path, options = {}) {
   if (!token || isExpired(token)) {
     token = await refreshAccessToken();
   }
-  const res = await fetch(`${API_BASE()}${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -62,6 +67,7 @@ export async function authRequest(path, options = {}) {
   });
   if (res.status === 401) {
     clearTokens();
+    window.dispatchEvent(new Event("auth:expired"));
     throw Object.assign(new Error("Session expired. Please log in again."), { code: "AUTH_EXPIRED" });
   }
   if (!res.ok) {
@@ -73,19 +79,19 @@ export async function authRequest(path, options = {}) {
 }
 
 export async function login({ email, password }) {
-  const res = await fetch(`${API_BASE()}/api/auth/login`, {
+  const res = await fetch(`${API_BASE}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Login failed");
+  if (!res.ok) throw new Error(data.error || data.message || "Login failed");
   storeTokens(data);
   return data.user;
 }
 
 export async function register({ name, email, password, currency }) {
-  const res = await fetch(`${API_BASE()}/api/auth/create`, {
+  const res = await fetch(`${API_BASE}/api/auth/create`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email, password, currency: currency || "EUR" }),
@@ -96,7 +102,7 @@ export async function register({ name, email, password, currency }) {
 }
 
 export async function verifyRegistration(code) {
-  const res = await fetch(`${API_BASE()}/api/auth/verify`, {
+  const res = await fetch(`${API_BASE}/api/auth/verify`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
@@ -108,7 +114,7 @@ export async function verifyRegistration(code) {
 }
 
 export async function resendVerificationCode(email) {
-  const res = await fetch(`${API_BASE()}/api/auth/resend`, {
+  const res = await fetch(`${API_BASE}/api/auth/resend`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
@@ -119,7 +125,7 @@ export async function resendVerificationCode(email) {
 }
 
 export async function forgotPassword(email) {
-  const res = await fetch(`${API_BASE()}/api/auth/forgot-password`, {
+  const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
@@ -130,7 +136,7 @@ export async function forgotPassword(email) {
 }
 
 export async function resetPassword(code, newPassword) {
-  const res = await fetch(`${API_BASE()}/api/auth/reset-password`, {
+  const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code, newPassword }),
@@ -144,7 +150,7 @@ export async function logout() {
   const refreshToken = getRefreshToken();
   clearTokens();
   // best-effort — don't await
-  fetch(`${API_BASE()}/api/auth/logout`, {
+  fetch(`${API_BASE}/api/auth/logout`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken }),
@@ -163,7 +169,7 @@ export async function changePassword({ currentPassword, newPassword }) {
 export async function updateProfile(patch) {
   const data = await authRequest("/api/user", { method: "PATCH", body: JSON.stringify(patch) });
   const existing = getStoredUser();
-  const updated = { ...existing, ...data };
+  const updated = { ...(existing ?? {}), ...data };
   localStorage.setItem(KEY_USER, JSON.stringify(updated));
   return updated;
 }

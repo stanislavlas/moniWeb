@@ -33,37 +33,29 @@ export function useAuth() {
   }, []);
 
   const login = useCallback(async (credentials) => {
-    try {
-      await withLoading(async () => {
-        const u = await apiLogin(credentials);
-        setUser(u);
-      });
-    } catch { /* error already stored in state */ }
+    await withLoading(async () => {
+      const u = await apiLogin(credentials);
+      setUser(u);
+    });
   }, [withLoading]);
 
   const register = useCallback(async (data) => {
-    try {
-      await withLoading(async () => {
-        const result = await apiRegister(data);
-        setPending({ email: data.email, ...result });
-      });
-    } catch { /* error already stored in state */ }
+    await withLoading(async () => {
+      const result = await apiRegister(data);
+      setPending({ email: data.email, ...result });
+    });
   }, [withLoading]);
 
   const verifyRegistration = useCallback(async (code) => {
-    try {
-      await withLoading(async () => {
-        const u = await apiVerify(code);
-        setUser(u);
-        setPending(null);
-      });
-    } catch { /* error already stored in state */ }
+    await withLoading(async () => {
+      const u = await apiVerify(code);
+      setUser(u);
+      setPending(null);
+    });
   }, [withLoading]);
 
   const resendRegistrationCode = useCallback(async (email) => {
-    try {
-      await withLoading(() => apiResend(email));
-    } catch { /* error already stored in state */ }
+    await withLoading(() => apiResend(email));
   }, [withLoading]);
 
   const cancelRegistrationVerification = useCallback(() => setPending(null), []);
@@ -74,12 +66,10 @@ export function useAuth() {
   }, []);
 
   const deleteAccount = useCallback(async (password) => {
-    try {
-      await withLoading(async () => {
-        await apiDelete(password);
-        setUser(null);
-      });
-    } catch { /* error already stored in state */ }
+    await withLoading(async () => {
+      await apiDelete(password);
+      setUser(null);
+    });
   }, [withLoading]);
 
   const changePassword = useCallback(async (data) => {

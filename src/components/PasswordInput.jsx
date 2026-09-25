@@ -9,7 +9,7 @@ export function PasswordInput({ value, onChange, placeholder, className = "" }) 
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className={`w-full bg-gray-100 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-green pr-12 ${className}`}
+        className={`w-full bg-gray-100 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-green pr-12 ${className}`}
       />
       <button
         type="button"

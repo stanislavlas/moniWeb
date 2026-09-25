@@ -1,5 +1,4 @@
 export function Spinner({ size = 6 }) {
-  const dim = `w-${size} h-${size}`;
   return (
     <div
       style={{ width: `${size * 4}px`, height: `${size * 4}px` }}

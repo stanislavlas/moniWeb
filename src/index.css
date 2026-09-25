@@ -6,3 +6,45 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Bottom nav pill background — mirrors mobile active tab color */
+:root {
+  --pill-bg: #ECEAF8;
+}
+.dark {
+  --pill-bg: #2A2A3D;
+}
+
+/* Hide scrollbar while keeping scroll functionality */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Fix browser autofill overriding dark mode input colors */
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active,
+.dark select:-webkit-autofill,
+.dark textarea:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 9999px #262626 inset !important; /* neutral-800 */
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff;
+}
+
+/* Ensure inputs always honour the dark/light background without browser interference */
+.dark input,
+.dark select,
+.dark textarea {
+  color-scheme: dark;
+}
+
+input,
+select,
+textarea {
+  color-scheme: light;
+}

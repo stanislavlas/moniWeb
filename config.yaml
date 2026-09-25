@@ -1,0 +1,17 @@
+name: "Moni Web"
+description: "React/Vite frontend for Moni app"
+# Bump version on every push so HA shows "Update available" in the add-on store.
+# Use MAJOR.MINOR.PATCH: patch for bug fixes, minor for new features.
+version: "1.0.0"
+slug: "moni-web"
+init: false
+host_network: true
+arch:
+  - aarch64
+  - amd64
+ports:
+  3000/tcp: 3000
+ports_description:
+  3000/tcp: "Web UI"
+options: {}
+schema: {}

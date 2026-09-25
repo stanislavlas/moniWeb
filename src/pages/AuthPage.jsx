@@ -46,6 +46,7 @@ export function AuthPage({
   }
 
   async function handleResetPassword() {
+    if (!resetCode.trim()) { setLocalError("Please enter the reset code"); return; }
     if (newPassword !== confirmNewPw) { setLocalError("Passwords do not match"); return; }
     setLocalLoading(true); setLocalError(null);
     try {

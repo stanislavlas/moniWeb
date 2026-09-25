@@ -10,6 +10,21 @@ export const MONTHS_SHORT = [
 ];
 
 /**
+ * Returns YYYY-MM strings for the last [n] months ending today, newest first.
+ * Used to seed the month scroller before the API responds.
+ * Uses UTC month/year to stay consistent with filterMonth (which uses toISOString).
+ */
+export function recentMonths(n = 3) {
+  const now = new Date();
+  const utcYear = now.getUTCFullYear();
+  const utcMonth = now.getUTCMonth(); // 0-indexed
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(Date.UTC(utcYear, utcMonth - i, 1));
+    return d.toISOString().slice(0, 7);
+  });
+}
+
+/**
  * Extract a plain numeric value from an entry's `amount` field.
  * The API can return either a plain number or an `{ value, currency }` object.
  */
@@ -42,19 +57,19 @@ export function sumEntriesByType(entries) {
 export function sumNecessity(entries) {
   const exp = entries.filter(e => e.type === "EXPENSE");
   return {
-    needs: exp.filter(e => e.necessity === "NEED").reduce((s, e) => s + getAmount(e), 0),
-    wants: exp.filter(e => e.necessity === "WANT").reduce((s, e) => s + getAmount(e), 0),
+    necessary: exp.filter(e => e.necessity === "NECESSARY" || e.necessity === "NEED").reduce((s, e) => s + getAmount(e), 0),
+    optional:  exp.filter(e => e.necessity === "OPTIONAL"  || e.necessity === "WANT").reduce((s, e) => s + getAmount(e), 0),
   };
 }
 
 /**
- * Normalise an API or UI necessity string to the UI format used in forms.
- * API format: "NEED" | "WANT"
- * UI format:  "necessary" | "optional"
+ * Normalise an API necessity string to lowercase UI form ("necessary" | "optional").
+ * Accepts both the new values (NECESSARY/OPTIONAL) and legacy (NEED/WANT) that may
+ * still be present in cached client data.
  */
 export function fromApiNecessity(value) {
-  if (value === "NEED" || value === "necessary") return "necessary";
-  if (value === "WANT" || value === "optional")  return "optional";
+  if (value === "NECESSARY" || value === "NEED") return "necessary";
+  if (value === "OPTIONAL"  || value === "WANT") return "optional";
   return "necessary"; // default
 }
 
