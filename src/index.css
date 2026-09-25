@@ -48,3 +48,15 @@ select,
 textarea {
   color-scheme: light;
 }
+
+/* On mobile, the fixed bottom nav covers page content — add clearance */
+@media (max-width: 639px) {
+  #root > *:not(nav) {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+/* Safe-area bottom padding utility for the bottom nav itself */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

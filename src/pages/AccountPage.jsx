@@ -25,7 +25,7 @@ export function AccountPage({ user, onChangePassword, onUpdateProfile, onDeleteA
   useEffect(() => { loadHousehold(); }, [loadHousehold]);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-2xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-6">
       <h1 className="text-2xl font-bold">Account</h1>
 
       {/* Pending invitations — visible on all tabs */}

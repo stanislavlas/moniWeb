@@ -68,7 +68,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
   const summaryMax = Math.max(totals.income, totals.expense, totals.investment, 1);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-6">
 
       {/* Header */}
       <div className="text-center">
@@ -109,7 +109,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
           {/* Balance */}
           <div className="text-center py-4">
             <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Balance</p>
-            <p className={`text-5xl font-bold font-mono ${totals.balance >= 0 ? "text-brand-green" : "text-brand-red"}`}>
+            <p className={`text-4xl sm:text-5xl font-bold font-mono ${totals.balance >= 0 ? "text-brand-green" : "text-brand-red"}`}>
               {fmt(totals.balance)}
             </p>
           </div>

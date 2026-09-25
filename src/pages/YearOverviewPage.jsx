@@ -122,7 +122,7 @@ export function YearOverviewPage({ user, showHousehold = false }) {
   const selNecessity = useMemo(() => sumNecessity(selEntries), [selEntries]);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-6">
 
       {/* Header */}
       <div className="text-center">
@@ -154,7 +154,7 @@ export function YearOverviewPage({ user, showHousehold = false }) {
       {/* Annual balance */}
       <div className="text-center py-4">
         <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Annual Balance</p>
-        <p className={`text-5xl font-bold font-mono ${yearBalance >= 0 ? "text-brand-green" : "text-brand-red"}`}>
+        <p className={`text-4xl sm:text-5xl font-bold font-mono ${yearBalance >= 0 ? "text-brand-green" : "text-brand-red"}`}>
           {formatCurrency(yearBalance, currency)}
         </p>
       </div>
@@ -224,7 +224,7 @@ export function YearOverviewPage({ user, showHousehold = false }) {
 
               <div className="text-center py-3">
                 <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Balance</p>
-                <p className={`text-4xl font-bold font-mono ${
+                <p className={`text-3xl sm:text-4xl font-bold font-mono ${
                   (selData.income - selData.expenses - selData.invested) >= 0 ? "text-brand-green" : "text-brand-red"
                 }`}>
                   {formatCurrency(selData.income - selData.expenses - selData.invested, currency)}

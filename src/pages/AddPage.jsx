@@ -101,7 +101,7 @@ export function AddPage({ user }) {
   const labelClass = "text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 block";
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
+    <div className="max-w-lg mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-5">
       <FeedbackBanner message={error} onDismiss={() => setError(null)} />
       <FeedbackBanner message={success ? "Entry added" : null} type="success" onDismiss={() => setSuccess(false)} />
 
@@ -120,7 +120,7 @@ export function AddPage({ user }) {
                 key={t.id}
                 type="button"
                 onClick={() => switchType(t.id)}
-                className="flex-1 py-3 rounded-xl border-2 text-sm font-semibold transition-colors"
+                className="flex-1 py-2.5 sm:py-3 rounded-xl border-2 text-xs sm:text-sm font-semibold transition-colors"
                 style={{
                   borderColor: isActive ? t.borderColor : "#e5e7eb",
                   backgroundColor: isActive ? t.bgLight : "transparent",
@@ -157,7 +157,7 @@ export function AddPage({ user }) {
             onChange={e => setAmount(e.target.value)}
             placeholder="0.00"
             required
-            className="w-full bg-gray-100 dark:bg-neutral-800 rounded-xl px-4 py-4 text-3xl font-bold font-mono text-center placeholder-gray-300 outline-none focus:ring-2"
+            className="w-full bg-gray-100 dark:bg-neutral-800 rounded-xl px-4 py-3 sm:py-4 text-2xl sm:text-3xl font-bold font-mono text-center placeholder-gray-300 outline-none focus:ring-2"
             style={{ borderWidth: "2px", borderColor: accent }}
           />
         </div>
@@ -166,7 +166,7 @@ export function AddPage({ user }) {
         {type === "expense" && (
           <div>
             <label className={labelClass}>Type</label>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={() => setNecessity("necessary")}

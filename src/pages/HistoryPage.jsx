@@ -61,7 +61,7 @@ export function HistoryPage({ showHousehold = false, user: userProp }) {
   const monthLabel = `${MONTHS_SHORT[parseInt(month, 10) - 1]} ${year}`;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+    <div className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">History</h1>
         <select
@@ -102,7 +102,7 @@ export function HistoryPage({ showHousehold = false, user: userProp }) {
           return (
             <div
               key={entry.entryId}
-              className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 px-4 py-3 flex items-center gap-3"
+              className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-3"
             >
               {catInfo && (
                 <div
@@ -134,7 +134,7 @@ export function HistoryPage({ showHousehold = false, user: userProp }) {
                 <p className="text-xs text-gray-400">{entry.date}</p>
               </div>
 
-              <div className="flex gap-3 shrink-0">
+              <div className="flex flex-col gap-1.5 shrink-0 items-end">
                 {canModify(entry) && (
                   <>
                     <button
