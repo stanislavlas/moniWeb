@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { listEntries, createEntry, updateEntry, deleteEntry } from "../services/entries.js";
 import { entryEvents } from "../utils/entryEvents.js";
+import { logger } from "../utils/logger.js";
 
 export function useEntries() {
   const [entries, setEntries] = useState([]);
@@ -12,7 +13,9 @@ export function useEntries() {
     try {
       const data = await listEntries(yearMonth, household);
       setEntries(data ?? []);
+      logger.info('entries', `load success: ${(data ?? []).length} entries for ${yearMonth}`);
     } catch (e) {
+      logger.error('entries', `load error for ${yearMonth}`, e.message);
       setError(e.message);
     } finally {
       setLoading(false);
@@ -24,8 +27,10 @@ export function useEntries() {
       const created = await createEntry(entry);
       setEntries(prev => [created, ...prev]);
       entryEvents.emit(created.date);
+      logger.info('entries', `add success: ${created.entryId}`);
       return created;
     } catch (e) {
+      logger.error('entries', 'add error', e.message);
       setError(e.message);
       throw e;
     }
@@ -36,16 +41,18 @@ export function useEntries() {
       const updated = await updateEntry(id, entry);
       setEntries(prev => prev.map(e => e.entryId === id ? updated : e));
       entryEvents.emit(updated.date);
+      logger.info('entries', `edit success: ${id}`);
       return updated;
     } catch (e) {
+      logger.error('entries', `edit error: ${id}`, e.message);
       setError(e.message);
       throw e;
     }
   }, []);
 
   const remove = useCallback(async (id) => {
-    // Find the entry's date before deleting so we can emit the right period
     const existing = entries.find(e => e.entryId === id);
+    logger.warn('entries', `remove: ${id}`);
     await deleteEntry(id);
     setEntries(prev => prev.filter(e => e.entryId !== id));
     if (existing?.date) entryEvents.emit(existing.date);

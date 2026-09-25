@@ -1,4 +1,8 @@
+import { logger } from "../utils/logger.js";
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
+logger.info('auth', 'Auth service initialized');
 
 const KEY_ACCESS  = "moni_access_token";
 const KEY_REFRESH = "moni_refresh_token";
@@ -32,10 +36,12 @@ function isExpired(token) {
 export async function refreshAccessToken() {
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
+    logger.warn('auth', 'No refresh token — clearing session');
     clearTokens();
     window.dispatchEvent(new Event("auth:expired"));
     throw Object.assign(new Error("No refresh token"), { code: "AUTH_EXPIRED" });
   }
+  logger.auth('Token refresh: attempting');
   const res = await fetch(`${API_BASE}/api/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -43,10 +49,12 @@ export async function refreshAccessToken() {
   });
   const data = await res.json();
   if (!res.ok) {
+    logger.error('auth', 'Token refresh failed — session expired');
     clearTokens();
     window.dispatchEvent(new Event("auth:expired"));
     throw Object.assign(new Error("Session expired"), { code: "AUTH_EXPIRED" });
   }
+  logger.auth('Token refresh: success');
   localStorage.setItem(KEY_ACCESS,  data.accessToken);
   if (data.refreshToken) localStorage.setItem(KEY_REFRESH, data.refreshToken);
   return data.accessToken;
@@ -57,6 +65,8 @@ export async function authRequest(path, options = {}) {
   if (!token || isExpired(token)) {
     token = await refreshAccessToken();
   }
+  const method = (options.method ?? "GET").toUpperCase();
+  logger.api(`${method} ${path}`);
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -66,6 +76,7 @@ export async function authRequest(path, options = {}) {
     },
   });
   if (res.status === 401) {
+    logger.error('auth', '401 Unauthorized — clearing session');
     clearTokens();
     window.dispatchEvent(new Event("auth:expired"));
     throw Object.assign(new Error("Session expired. Please log in again."), { code: "AUTH_EXPIRED" });
@@ -79,36 +90,51 @@ export async function authRequest(path, options = {}) {
 }
 
 export async function login({ email, password }) {
+  logger.auth(`Login: ${email}`);
   const res = await fetch(`${API_BASE}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || data.message || "Login failed");
+  if (!res.ok) {
+    logger.error('auth', `Login error: ${data.error || data.message || 'Login failed'}`);
+    throw new Error(data.error || data.message || "Login failed");
+  }
+  logger.auth('Login success');
   storeTokens(data);
   return data.user;
 }
 
 export async function register({ name, email, password, currency }) {
+  logger.auth(`Register: ${email}`);
   const res = await fetch(`${API_BASE}/api/auth/create`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email, password, currency: currency || "EUR" }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || data.message || "Registration failed");
+  if (!res.ok) {
+    logger.error('auth', `Register error: ${data.error || data.message || 'Registration failed'}`);
+    throw new Error(data.error || data.message || "Registration failed");
+  }
+  logger.auth('Register success — pending verification');
   return data; // returns pending verification state
 }
 
 export async function verifyRegistration(code) {
+  logger.auth('Verify registration: attempting');
   const res = await fetch(`${API_BASE}/api/auth/verify`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || data.message || "Verification failed");
+  if (!res.ok) {
+    logger.error('auth', `Verify error: ${data.error || data.message || 'Verification failed'}`);
+    throw new Error(data.error || data.message || "Verification failed");
+  }
+  logger.auth('Verify registration: success');
   storeTokens(data);
   return data.user;
 }
@@ -147,6 +173,7 @@ export async function resetPassword(code, newPassword) {
 }
 
 export async function logout() {
+  logger.auth('Logout');
   const refreshToken = getRefreshToken();
   clearTokens();
   // best-effort — don't await
@@ -158,7 +185,9 @@ export async function logout() {
 }
 
 export async function deleteAccount(password) {
+  logger.warn('auth', 'Delete account: attempting');
   await authRequest("/api/auth/account", { method: "DELETE", body: JSON.stringify({ password }) });
+  logger.auth('Delete account: success');
   clearTokens();
 }
 

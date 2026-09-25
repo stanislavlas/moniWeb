@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { listCategories, createCategory, updateCategory, deleteCategory } from "../services/categories.js";
+import { logger } from "../utils/logger.js";
 
 const COLOR_PALETTE = [
   "#7F77DD","#1D9E75","#D85A30","#378ADD","#EF9F27",
@@ -27,8 +28,11 @@ export function useCategories() {
     setLoading(true); setError(null);
     try {
       const data = await listCategories();
-      setCategories((data ?? []).map(normalizeCategory));
+      const normalized = (data ?? []).map(normalizeCategory);
+      setCategories(normalized);
+      logger.info('categories', `load success: ${normalized.length} categories`);
     } catch (e) {
+      logger.error('categories', 'load error', e.message);
       setError(e.message);
     } finally {
       setLoading(false);
@@ -38,18 +42,21 @@ export function useCategories() {
   const add = useCallback(async (category) => {
     const created = await createCategory(category);
     setCategories(prev => [...prev, normalizeCategory(created, prev.length)]);
+    logger.info('categories', `add success: ${created.categoryId}`);
     return created;
   }, []);
 
   const update = useCallback(async (id, patch) => {
     const updated = await updateCategory(id, patch);
     setCategories(prev => prev.map((c, i) => c.categoryId === id ? normalizeCategory(updated, i) : c));
+    logger.info('categories', `update success: ${id}`);
     return updated;
   }, []);
 
   const remove = useCallback(async (id) => {
     await deleteCategory(id);
     setCategories(prev => prev.filter(c => c.categoryId !== id));
+    logger.info('categories', `remove success: ${id}`);
   }, []);
 
   const colorMap = useMemo(() =>

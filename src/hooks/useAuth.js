@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAsyncAction } from "./useAsyncAction.js";
+import { logger } from "../utils/logger.js";
 import {
   getStoredUser,
   login as apiLogin,
@@ -21,13 +22,19 @@ export function useAuth() {
 
   useEffect(() => {
     const stored = getStoredUser();
-    if (stored) setUser(stored);
+    if (stored) {
+      logger.auth(`Session restored: ${stored.email}`);
+      setUser(stored);
+    }
     setReady(true);
   }, []);
 
   // Auto-logout when any authRequest detects an expired/invalid session
   useEffect(() => {
-    function handleExpired() { setUser(null); }
+    function handleExpired() {
+      logger.warn('auth', 'Session expired — auto logout');
+      setUser(null);
+    }
     window.addEventListener("auth:expired", handleExpired);
     return () => window.removeEventListener("auth:expired", handleExpired);
   }, []);
@@ -61,6 +68,7 @@ export function useAuth() {
   const cancelRegistrationVerification = useCallback(() => setPending(null), []);
 
   const logout = useCallback(async () => {
+    logger.auth('Logout initiated');
     await apiLogout();
     setUser(null);
   }, []);

@@ -20,6 +20,6 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copy nginx config and entrypoint
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY run.sh /run.sh
-RUN chmod +x /run.sh
+RUN chmod +x /run.sh && mkdir -p /run/s6/container_environment
 
 CMD ["/run.sh"]

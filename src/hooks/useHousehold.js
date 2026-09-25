@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { logger } from "../utils/logger.js";
 import {
   createHousehold as apiCreate,
   getHousehold as apiGet,
@@ -28,7 +29,9 @@ export function useHousehold() {
       const [data, pending] = await Promise.all([apiGet(), apiGetPending().catch(() => [])]);
       setHousehold(data ?? null);
       setPending(pending ?? []);
+      logger.info('household', `load success: household=${data?.name ?? 'none'}, pending=${(pending ?? []).length}`);
     } catch (e) {
+      logger.error('household', 'load error', e.message);
       setError(e.message);
     } finally {
       setLoading(false);
@@ -50,8 +53,10 @@ export function useHousehold() {
     try {
       const data = await apiCreate(name);
       setHousehold(data);
+      logger.info('household', `create success: ${data?.name}`);
       return data;
     } catch (e) {
+      logger.error('household', 'create error', e.message);
       setError(e.message);
       throw e;
     } finally {
@@ -97,11 +102,13 @@ export function useHousehold() {
   }, []);
 
   const leave = useCallback(async () => {
+    logger.warn('household', 'leave household');
     await apiLeave();
     setHousehold(null);
   }, []);
 
   const deleteHousehold = useCallback(async () => {
+    logger.warn('household', 'delete household');
     await apiDelete();
     setHousehold(null);
   }, []);
