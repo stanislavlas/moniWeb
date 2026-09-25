@@ -12,8 +12,6 @@ RUN npm run build
 
 # Stage 2: Serve with nginx on HA base image
 FROM ghcr.io/home-assistant/base:latest
-
-# Install nginx
 RUN apk add --no-cache nginx
 
 # Copy built static files
