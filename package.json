@@ -1,5 +1,5 @@
 {
-  "name": "personal-finance-web",
+  "name": "moni-web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -12,8 +12,7 @@
   "dependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^6.26.0",
-    "recharts": "^3.10.1"
+    "react-router-dom": "^6.26.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",

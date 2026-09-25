@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useEntries } from "../hooks/useEntries.js";
 import { useCategories } from "../hooks/useCategories.js";
+import { useAuth } from "../hooks/useAuth.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
-
-const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+import { MONTHS_SHORT, getAmount, formatCurrency } from "../utils/money.js";
 
 function buildMonthOptions() {
   return Array.from({ length: 36 }, (_, i) => {
@@ -17,26 +17,40 @@ function buildMonthOptions() {
   });
 }
 
-export function HistoryPage() {
+export function HistoryPage({ showHousehold = false }) {
   const navigate = useNavigate();
-  const monthOptions = buildMonthOptions();
+  const { user } = useAuth();
+  const currency = user?.currency ?? "EUR";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const monthOptions = useMemo(() => buildMonthOptions(), []);
   const [filterMonth, setFilterMonth] = useState(monthOptions[0].value);
+  const [deleteError, setDeleteError] = useState(null);
   const { entries, loading, error, load, remove } = useEntries();
-  const { categories, load: loadCats } = useCategories();
+  const { categories, load: loadCats, colorMap } = useCategories();
 
   useEffect(() => { loadCats(); }, [loadCats]);
-  useEffect(() => { load(filterMonth); }, [filterMonth, load]);
+  useEffect(() => { load(filterMonth, showHousehold); }, [filterMonth, showHousehold, load]);
 
   const handleDelete = useCallback(async (id) => {
     if (!window.confirm("Delete this entry?")) return;
-    await remove(id);
+    setDeleteError(null);
+    try {
+      await remove(id);
+    } catch (err) {
+      setDeleteError(err.message ?? "Failed to delete entry");
+    }
   }, [remove]);
 
-  function getCatLabel(cat) {
+  function getCatInfo(entry) {
+    const catId = entry.categoryId ?? entry.category?.categoryId;
+    if (!catId) return null;
+    const cat = categories.find(c => c.categoryId === catId);
     if (!cat) return null;
-    if (cat.name) return `${cat.icon ?? ""} ${cat.name}`.trim();
-    const found = categories.find(c => c.categoryId === cat.categoryId);
-    return found ? `${found.icon ?? ""} ${found.name}`.trim() : null;
+    return {
+      icon: cat.icon ?? cat.emoji ?? "",
+      name: cat.name,
+      catId,
+    };
   }
 
   return (
@@ -46,13 +60,13 @@ export function HistoryPage() {
         <select
           value={filterMonth}
           onChange={e => setFilterMonth(e.target.value)}
-          className="bg-gray-100 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-3 py-2 text-sm"
+          className="bg-gray-100 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white"
         >
           {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
 
-      <FeedbackBanner message={error} type="error" />
+      <FeedbackBanner message={error || deleteError} type="error" />
 
       {loading && <div className="flex justify-center py-12"><Spinner size={10} /></div>}
 
@@ -61,41 +75,75 @@ export function HistoryPage() {
       )}
 
       <div className="space-y-2">
-        {entries.map(entry => (
-          <div
-            key={entry.entryId}
-            className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 px-4 py-3 flex items-center justify-between gap-4"
-          >
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-base font-bold ${entry.type === "income" ? "text-brand-green" : "text-brand-red"}`}>
-                  {entry.type === "INCOME" ? "+" : "−"}€{parseFloat(entry.amount?.value ?? entry.amount ?? 0).toFixed(2)}
-                </span>
-                {getCatLabel(entry.category) && (
-                  <span className="text-xs bg-gray-100 dark:bg-neutral-800 text-gray-500 rounded-full px-2 py-0.5">
-                    {getCatLabel(entry.category)}
+        {entries.map(entry => {
+          const isIncome     = entry.type === "INCOME";
+          const isInvestment = entry.type === "INVESTMENT";
+          const sign = isIncome ? "+" : "−";
+          const amountColor = isIncome
+            ? "text-brand-green"
+            : isInvestment
+            ? "text-brand-blue"
+            : "text-brand-red";
+
+          const catInfo = getCatInfo(entry);
+          const catId   = entry.categoryId ?? entry.category?.categoryId;
+          const color   = catId ? colorMap[catId] : null;
+
+          return (
+            <div
+              key={entry.entryId}
+              className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 px-4 py-3 flex items-center gap-3"
+            >
+              {/* Colored category icon circle */}
+              {catInfo && (
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0"
+                  style={{ backgroundColor: color ? color + "20" : "#8887801A" }}
+                >
+                  {catInfo.icon || "💰"}
+                </div>
+              )}
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-base font-bold ${amountColor}`}>
+                    {sign}{formatCurrency(
+                      getAmount(entry), currency
+                    )}
                   </span>
-                )}
+                  {catInfo && (
+                    <span
+                      className="text-xs rounded-xl px-2 py-0.5 font-medium"
+                      style={color
+                        ? { backgroundColor: color + "20", color }
+                        : { backgroundColor: "#f3f4f6", color: "#6b7280" }
+                      }
+                    >
+                      {catInfo.name}
+                    </span>
+                  )}
+                </div>
+                {entry.note && <p className="text-sm text-gray-500 truncate">{entry.note}</p>}
+                <p className="text-xs text-gray-400">{entry.date}</p>
               </div>
-              {entry.note && <p className="text-sm text-gray-500 truncate">{entry.note}</p>}
-              <p className="text-xs text-gray-400">{entry.date}</p>
+
+              <div className="flex gap-3 shrink-0">
+                <button
+                  onClick={() => navigate("/add", { state: { entry } })}
+                  className="text-xs text-brand-blue hover:underline"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(entry.entryId)}
+                  className="text-xs text-brand-red hover:underline"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-            <div className="flex gap-3 shrink-0">
-              <button
-                onClick={() => navigate("/add", { state: { entry } })}
-                className="text-xs text-brand-blue hover:underline"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => handleDelete(entry.entryId)}
-                className="text-xs text-brand-red hover:underline"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

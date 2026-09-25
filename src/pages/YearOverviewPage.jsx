@@ -1,101 +1,211 @@
-import { useEffect, useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { useEffect, useState, useMemo } from "react";
 import { listEntries } from "../services/entries.js";
+import { useCategories } from "../hooks/useCategories.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
+import { NecessityBreakdown } from "../components/NecessityBreakdown.jsx";
+import { SummaryPills } from "../components/SummaryPills.jsx";
+import { MONTHS_SHORT, getAmount, formatCurrency, sumNecessity } from "../utils/money.js";
 
-const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-function amt(entry) {
-  return parseFloat(entry.amount?.value ?? entry.amount ?? 0);
-}
-
-export function YearOverviewPage() {
+export function YearOverviewPage({ user, showHousehold = false }) {
   const currentYear = new Date().getFullYear();
-  const [year, setYear]           = useState(currentYear);
-  const [monthlyData, setMonthly] = useState([]);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState(null);
+  const currentMonthIndex = new Date().getMonth(); // 0-indexed
+  const currency = user?.currency ?? "EUR";
 
+  const [year, setYear]                   = useState(currentYear);
+  const [selectedMonthIndex, setMonth]    = useState(currentMonthIndex);
+  const [monthlyData, setMonthly]         = useState([]);
+  const [allEntries, setAllEntries]       = useState([]);
+  const [allEntriesLoading, setAllEntriesLoading] = useState(true);
+  const [error, setError]                 = useState(null);
+
+  const { categories, load: loadCats, colorMap } = useCategories();
+  useEffect(() => { loadCats(); }, [loadCats]);
+
+  // Fetch all entries once — used both for year discovery and monthly breakdown
   useEffect(() => {
-    async function loadYear() {
-      setLoading(true); setError(null);
-      try {
-        const results = await Promise.all(
-          Array.from({ length: 12 }, (_, i) => {
-            const ym = `${year}-${String(i + 1).padStart(2, "0")}`;
-            return listEntries(ym).catch(() => []);
-          })
-        );
-        setMonthly(
-          results.map((entries, i) => ({
-            month:    MONTHS_SHORT[i],
-            income:   entries.filter(e => e.type === "INCOME")   .reduce((s, e) => s + amt(e), 0),
-            expenses: entries.filter(e => e.type === "EXPENSE")  .reduce((s, e) => s + amt(e), 0),
-          }))
-        );
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadYear();
-  }, [year]);
+    let cancelled = false;
+    setAllEntriesLoading(true);
+    listEntries(null, showHousehold)
+      .then(data => { if (!cancelled) setAllEntries(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) setAllEntries([]); })
+      .finally(() => { if (!cancelled) setAllEntriesLoading(false); });
+    return () => { cancelled = true; };
+  }, [showHousehold]);
 
-  const totalIncome   = monthlyData.reduce((s, m) => s + m.income,   0);
-  const totalExpenses = monthlyData.reduce((s, m) => s + m.expenses, 0);
+  // Derive monthly breakdown from already-fetched entries — no extra requests
+  useEffect(() => {
+    const yearEntries = allEntries.filter(e => e.date?.startsWith(String(year)));
+    setMonthly(Array.from({ length: 12 }, (_, i) => {
+      const mo = String(i + 1).padStart(2, "0");
+      const ym = `${year}-${mo}`;
+      const monthEntries = yearEntries.filter(e => e.date?.startsWith(ym));
+      return {
+        month:    MONTHS_SHORT[i],
+        index:    i,
+        income:   monthEntries.filter(e => e.type === "INCOME")    .reduce((s, e) => s + getAmount(e), 0),
+        expenses: monthEntries.filter(e => e.type === "EXPENSE")   .reduce((s, e) => s + getAmount(e), 0),
+        invested: monthEntries.filter(e => e.type === "INVESTMENT").reduce((s, e) => s + getAmount(e), 0),
+        entries:  monthEntries,
+      };
+    }));
+  }, [year, allEntries]);
+
+  // Available years derived from all entry dates + current year (data-driven, like mobile)
+  const availableYears = useMemo(() => {
+    const s = new Set([currentYear]);
+    allEntries.forEach(e => { if (e.date) s.add(parseInt(e.date.slice(0, 4), 10)); });
+    return [...s].sort((a, b) => b - a);
+  }, [allEntries, currentYear]);
+
+  // Annual totals
+  const yearTotals = useMemo(() => ({
+    income:   monthlyData.reduce((s, m) => s + m.income,   0),
+    expenses: monthlyData.reduce((s, m) => s + m.expenses, 0),
+    invested: monthlyData.reduce((s, m) => s + m.invested, 0),
+  }), [monthlyData]);
+
+  const yearBalance = yearTotals.income - yearTotals.expenses - yearTotals.invested;
+
+  // Annual needs/wants
+  const yearNecessity = useMemo(() => {
+    const all = monthlyData.flatMap(m => m.entries);
+    return sumNecessity(all);
+  }, [monthlyData]);
+
+  // Bar max (per-bar, not stacked — like mobile which uses max of individual bars)
+  const barMax = useMemo(() =>
+    Math.max(...monthlyData.map(m => Math.max(m.income, m.expenses, m.invested)), 1),
+  [monthlyData]);
+
+  // Selected month
+  const selData = monthlyData[selectedMonthIndex] ?? null;
+  const selEntries = selData?.entries ?? [];
+
+  const selNecessity = useMemo(() => sumNecessity(selEntries), [selEntries]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{year} Overview</h1>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setYear(y => y - 1)}
-            className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-neutral-800 text-sm font-medium hover:bg-gray-200"
-          >
-            ←
-          </button>
-          <button
-            onClick={() => setYear(y => y + 1)}
-            disabled={year >= currentYear}
-            className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-neutral-800 text-sm font-medium hover:bg-gray-200 disabled:opacity-40"
-          >
-            →
-          </button>
+
+      {/* Header */}
+      <div className="text-center">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">Year Overview</p>
+        <h1 className="text-xl font-bold">{year}</h1>
+      </div>
+
+      {/* Year scroller — no scrollbar */}
+      <div className="overflow-x-auto no-scrollbar pb-1">
+        <div className="flex gap-2 w-max px-1">
+          {(availableYears.length > 0 ? availableYears : [currentYear, currentYear - 1]).map(y => (
+            <button
+              key={y}
+              onClick={() => { setYear(y); setMonth(y === currentYear ? currentMonthIndex : 0); }}
+              className={`px-5 py-2.5 rounded-xl border font-bold text-sm transition-colors ${
+                y === year
+                  ? "bg-brand-green border-brand-green text-white"
+                  : "bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-700 text-gray-700 dark:text-gray-200"
+              }`}
+            >
+              {y}
+            </button>
+          ))}
         </div>
       </div>
 
       <FeedbackBanner message={error} type="error" />
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-brand-greenLight rounded-2xl p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Income</p>
-          <p className="text-xl font-bold text-brand-green">€{totalIncome.toFixed(2)}</p>
-        </div>
-        <div className="bg-brand-redLight rounded-2xl p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Expenses</p>
-          <p className="text-xl font-bold text-brand-red">€{totalExpenses.toFixed(2)}</p>
-        </div>
+      {/* Annual balance */}
+      <div className="text-center py-4">
+        <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Annual Balance</p>
+        <p className={`text-5xl font-bold font-mono ${yearBalance >= 0 ? "text-brand-green" : "text-brand-red"}`}>
+        {formatCurrency(yearBalance, currency)}
+        </p>
       </div>
 
-      {loading ? (
+      {/* Annual pills */}
+      <SummaryPills income={yearTotals.income} expense={yearTotals.expenses} investment={yearTotals.invested} currency={currency} />
+
+      {/* Annual expense breakdown */}
+      {yearTotals.expenses > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Expense breakdown</h2>
+          <NecessityBreakdown needs={yearNecessity.needs} wants={yearNecessity.wants} total={yearTotals.expenses} currency={currency} />
+        </div>
+      )}
+
+      {allEntriesLoading ? (
         <div className="flex justify-center py-12"><Spinner size={10} /></div>
       ) : (
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4">
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Monthly Breakdown</h2>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={monthlyData}>
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v) => `€${Number(v).toFixed(2)}`} />
-              <Legend />
-              <Bar dataKey="income"   name="Income"   fill="#1D9E75" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expenses" name="Expenses" fill="#D85A30" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <>
+          {/* Bar chart — side-by-side columns per month (like mobile) */}
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4">
+            <div className="flex items-end gap-0.5" style={{ height: "100px" }}>
+              {monthlyData.map((m, i) => {
+                const isActive = selectedMonthIndex === i;
+                const incH = (m.income   / barMax) * 100;
+                const expH = (m.expenses / barMax) * 100;
+                const invH = (m.invested / barMax) * 100;
+                return (
+                  <button
+                    key={m.month}
+                    onClick={() => setMonth(i)}
+                    className="flex-1 flex flex-col items-center"
+                  >
+                    {/* 3 side-by-side sub-bars */}
+                    <div className="w-full flex items-end gap-[1px]" style={{ height: "80px" }}>
+                      <div style={{ flex: 1, height: `${incH}%`, backgroundColor: "#1D9E75", opacity: isActive ? 1 : 0.3, borderRadius: "2px 2px 0 0", minHeight: m.income   > 0 ? "2px" : "0" }} />
+                      <div style={{ flex: 1, height: `${expH}%`, backgroundColor: "#D85A30", opacity: isActive ? 1 : 0.3, borderRadius: "2px 2px 0 0", minHeight: m.expenses > 0 ? "2px" : "0" }} />
+                      <div style={{ flex: 1, height: `${invH}%`, backgroundColor: "#378ADD", opacity: isActive ? 1 : 0.3, borderRadius: "2px 2px 0 0", minHeight: m.invested > 0 ? "2px" : "0" }} />
+                    </div>
+                    <span className={`text-[9px] font-medium mt-1 ${isActive ? "text-gray-800 dark:text-gray-100" : "text-gray-400"}`}>
+                      {m.month}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Legend */}
+            <div className="flex gap-4 mt-3 justify-center">
+              {[
+                { color: "#1D9E75", label: "Income"   },
+                { color: "#D85A30", label: "Expenses" },
+                { color: "#378ADD", label: "Invested" },
+              ].map(l => (
+                <div key={l.label} className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: l.color }} />
+                  <span className="text-[11px] text-gray-400">{l.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Selected month detail */}
+          {selData && (
+            <div className="space-y-4 pt-2 border-t border-gray-100 dark:border-neutral-800">
+              <p className="text-xs font-semibold text-gray-400 text-center uppercase tracking-wide">
+                {MONTHS_SHORT[selData.index]} {year}
+              </p>
+
+              {/* Month balance */}
+              <div className="text-center py-3">
+                <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Balance</p>
+                <p className={`text-4xl font-bold font-mono ${
+                  (selData.income - selData.expenses - selData.invested) >= 0 ? "text-brand-green" : "text-brand-red"
+                }`}>
+                  {formatCurrency(selData.income - selData.expenses - selData.invested, currency)}
+                </p>
+              </div>
+
+              {/* Month pills */}
+              <SummaryPills income={selData.income} expense={selData.expenses} investment={selData.invested} currency={currency} />
+
+              {/* Month expense breakdown */}
+              {selData.expenses > 0 && (
+                <NecessityBreakdown needs={selNecessity.needs} wants={selNecessity.wants} total={selData.expenses} currency={currency} />
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

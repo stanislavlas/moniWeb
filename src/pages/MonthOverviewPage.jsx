@@ -1,100 +1,93 @@
 import { useEffect, useState, useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { useEntries } from "../hooks/useEntries.js";
 import { useCategories } from "../hooks/useCategories.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
+import { NecessityBreakdown } from "../components/NecessityBreakdown.jsx";
+import { SummaryPills } from "../components/SummaryPills.jsx";
+import { MONTHS_SHORT, getAmount, formatCurrency, sumEntriesByType, sumNecessity } from "../utils/money.js";
 
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-function buildMonths() {
-  return Array.from({ length: 12 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    return d.toISOString().slice(0, 7);
-  });
-}
-
-function amt(entry) {
-  // entry.amount is { value: string|number, currency: string }
-  return parseFloat(entry.amount?.value ?? entry.amount ?? 0);
-}
-
-function SummaryCard({ label, value, color }) {
-  const styles = {
-    green: { bg: "bg-brand-greenLight", text: "text-brand-green" },
-    red:   { bg: "bg-brand-redLight",   text: "text-brand-red"   },
-    blue:  { bg: "bg-brand-blueLight",  text: "text-brand-blue"  },
-    amber: { bg: "bg-brand-amberLight", text: "text-brand-amber" },
-  }[color] ?? { bg: "bg-gray-100", text: "text-gray-700" };
-
-  return (
-    <div className={`${styles.bg} rounded-2xl p-4`}>
-      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label}</p>
-      <p className={`text-lg font-bold ${styles.text}`}>€{Number(value).toFixed(2)}</p>
-    </div>
-  );
-}
-
-export function MonthOverviewPage() {
+export function MonthOverviewPage({ user, showHousehold = false }) {
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const { entries, loading, error, load } = useEntries();
-  const { categories, load: loadCats } = useCategories();
+  const { categories, load: loadCats, colorMap } = useCategories();
 
-  useEffect(() => { load(filterMonth); }, [filterMonth, load]);
+  useEffect(() => { load(filterMonth, showHousehold); }, [filterMonth, showHousehold, load]);
   useEffect(() => { loadCats(); }, [loadCats]);
 
-  const months = buildMonths();
-  const [year, month] = filterMonth.split("-");
-  const monthLabel = `${MONTHS[parseInt(month, 10) - 1]} ${year}`;
+  // Build month list from entry dates already loaded + current month
+  const months = useMemo(() => {
+    const keys = new Set();
+    keys.add(new Date().toISOString().slice(0, 7));
+    entries.forEach(e => { if (e.date) keys.add(e.date.slice(0, 7)); });
+    return Array.from(keys).sort((a, b) => b.localeCompare(a));
+  }, [entries]);
 
-  // Compute totals client-side (mirrors mobile MonthOverviewScreen)
+  const [year, month] = filterMonth.split("-");
+  const monthLabel = `${MONTHS_SHORT[parseInt(month, 10) - 1]} ${year}`;
+
+  const currency = user?.currency ?? "EUR";
+  const fmt = (v) => formatCurrency(v, currency);
+
   const totals = useMemo(() => {
-    const income     = entries.filter(e => e.type === "INCOME")    .reduce((s, e) => s + amt(e), 0);
-    const expense    = entries.filter(e => e.type === "EXPENSE")   .reduce((s, e) => s + amt(e), 0);
-    const investment = entries.filter(e => e.type === "INVESTMENT").reduce((s, e) => s + amt(e), 0);
+    const { income, expense, investment } = sumEntriesByType(entries);
     return { income, expense, investment, balance: income - expense - investment };
   }, [entries]);
 
-  // Needs vs wants
-  const necessityTotals = useMemo(() => {
-    const expenses = entries.filter(e => e.type === "EXPENSE");
-    const needs = expenses.filter(e => e.necessity === "NEED") .reduce((s, e) => s + amt(e), 0);
-    const wants = expenses.filter(e => e.necessity === "WANT") .reduce((s, e) => s + amt(e), 0);
-    return { needs, wants };
-  }, [entries]);
+  const necessityTotals = useMemo(() => sumNecessity(entries), [entries]);
 
-  // Category breakdown
   const catBreakdown = useMemo(() => {
     const map = {};
     entries.forEach(e => {
       const id = e.categoryId;
       if (!id) return;
-      map[id] = (map[id] || 0) + amt(e);
+      map[id] = (map[id] || 0) + getAmount(e);
     });
     return Object.entries(map)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([catId, total]) => {
         const cat = categories.find(c => c.categoryId === catId);
-        return { name: cat ? `${cat.icon ?? ""} ${cat.name}`.trim() : catId.slice(0, 8), total };
+        const icon = cat?.icon ?? cat?.emoji ?? "";
+        const name = cat?.name ?? catId.slice(0, 8);
+        return { catId, label: icon ? `${icon} ${name}` : name, total };
       });
   }, [entries, categories]);
 
+  const catMax = catBreakdown[0]?.total || 1;
+  const summaryMax = Math.max(totals.income, totals.expense, totals.investment, 1);
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">{monthLabel}</h1>
-        <select
-          value={filterMonth}
-          onChange={e => setFilterMonth(e.target.value)}
-          className="bg-gray-100 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-3 py-2 text-sm"
-        >
+
+      {/* Header */}
+      <div className="text-center">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">Month Overview</p>
+        <h1 className="text-xl font-bold">{monthLabel}</h1>
+      </div>
+
+      {/* Month scroller — no scrollbar */}
+      <div className="overflow-x-auto no-scrollbar pb-1">
+        <div className="flex gap-2 w-max px-1">
           {months.map(m => {
             const [y, mo] = m.split("-");
-            return <option key={m} value={m}>{MONTHS[parseInt(mo, 10) - 1]} {y}</option>;
+            const isActive = m === filterMonth;
+            return (
+              <button
+                key={m}
+                onClick={() => setFilterMonth(m)}
+                className={`flex flex-col items-center px-4 py-2.5 rounded-xl border transition-colors ${
+                  isActive
+                    ? "bg-brand-green border-brand-green text-white"
+                    : "bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-700 text-gray-700 dark:text-gray-200"
+                }`}
+              >
+                <span className="text-sm font-bold leading-tight">{MONTHS_SHORT[parseInt(mo, 10) - 1]}</span>
+                <span className={`text-[10px] font-medium leading-tight mt-0.5 ${isActive ? "text-white/80" : "text-gray-400"}`}>{y}</span>
+              </button>
+            );
           })}
-        </select>
+        </div>
       </div>
 
       <FeedbackBanner message={error} type="error" />
@@ -103,42 +96,71 @@ export function MonthOverviewPage() {
 
       {!loading && (
         <>
-          {/* Summary cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <SummaryCard label="Income"     value={totals.income}     color="green" />
-            <SummaryCard label="Expenses"   value={totals.expense}    color="red"   />
-            <SummaryCard label="Balance"    value={totals.balance}    color="blue"  />
-            {totals.investment > 0 && (
-              <SummaryCard label="Invested" value={totals.investment} color="amber" />
-            )}
+          {/* Balance */}
+          <div className="text-center py-4">
+            <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Balance</p>
+            <p className={`text-5xl font-bold font-mono ${totals.balance >= 0 ? "text-brand-green" : "text-brand-red"}`}>
+              {fmt(totals.balance)}
+            </p>
           </div>
 
-          {/* Needs vs Wants */}
+          {/* Pills — Income / Expenses / Invested */}
+          <SummaryPills income={totals.income} expense={totals.expense} investment={totals.investment} currency={currency} />
+
+          {/* Summary bars (like mobile) */}
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Summary</h2>
+            {[
+              { label: "💰 Income",   val: totals.income,     color: "#1D9E75" },
+              { label: "💳 Expenses", val: totals.expense,    color: "#D85A30" },
+              ...(totals.investment > 0
+                ? [{ label: "📈 Invested", val: totals.investment, color: "#378ADD" }]
+                : []),
+            ].map(({ label, val, color }) => (
+              <div key={label}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm text-gray-700 dark:text-gray-200">{label}</span>
+                  <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{fmt(val)}</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-gray-100 dark:bg-neutral-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${(val / summaryMax) * 100}%`, backgroundColor: color }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Expense breakdown — Needs vs Wants */}
           {totals.expense > 0 && (
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Needs</p>
-                <p className="text-xl font-bold text-brand-green">€{necessityTotals.needs.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Wants</p>
-                <p className="text-xl font-bold text-brand-amber">€{necessityTotals.wants.toFixed(2)}</p>
-              </div>
+            <div className="space-y-2">
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Expense breakdown</h2>
+              <NecessityBreakdown needs={necessityTotals.needs} wants={necessityTotals.wants} total={totals.expense} currency={currency} />
             </div>
           )}
 
-          {/* Category bar chart */}
+          {/* By category */}
           {catBreakdown.length > 0 && (
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4">
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">By Category</h2>
-              <ResponsiveContainer width="100%" height={Math.max(180, catBreakdown.length * 36)}>
-                <BarChart data={catBreakdown} layout="vertical" margin={{ left: 10, right: 20, top: 0, bottom: 0 }}>
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(v) => `€${Number(v).toFixed(2)}`} />
-                  <Bar dataKey="total" radius={[0, 6, 6, 0]} fill="#D85A30" />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">By category</h2>
+              {catBreakdown.map(({ catId, label, total }) => {
+                const barColor = colorMap[catId] || "#D85A30";
+                return (
+                  <div key={catId}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm text-gray-700 dark:text-gray-200">{label}</span>
+                      <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{fmt(total)}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-gray-100 dark:bg-neutral-800 overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${(total / catMax) * 100}%`, backgroundColor: barColor }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
