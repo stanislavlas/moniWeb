@@ -4,67 +4,90 @@ import { CategoryChips } from "../components/CategoryChips.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 import { Spinner } from "../components/Spinner.jsx";
 import { useCategories } from "../hooks/useCategories.js";
+import { useCurrencies } from "../hooks/useCurrencies.js";
 import { createEntry, updateEntry } from "../services/entries.js";
+import { INPUT_CLASS } from "../utils/styles.js";
+import { fromApiNecessity } from "../utils/money.js";
 
 export function AddPage({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
   const editing  = location.state?.entry ?? null;
 
-  const { categories, load: loadCats } = useCategories();
+  const { categories, load: loadCats, colorMap } = useCategories();
   useEffect(() => { loadCats(); }, [loadCats]);
 
-  // API returns type as uppercase ("EXPENSE"/"INCOME"), UI uses lowercase for display
-  const editingType = editing?.type ? editing.type.toLowerCase() : "expense";
-  const editingNecessity = editing?.necessity ? editing.necessity.toLowerCase() : "want";
+  const { currencies } = useCurrencies();
 
-  const [type, setType]           = useState(editingType);
-  // editing.amount is { value: string, currency: string }
-  const [amount, setAmount]       = useState(editing ? String(parseFloat(editing.amount?.value ?? editing.amount ?? "")) : "");
-  const [note, setNote]           = useState(editing?.note ?? "");
-  // editing.categoryId is a plain UUID string; find matching category object
+  const defaultCurrency = editing?.currency ?? editing?.amount?.currency ?? user?.currency ?? "EUR";
+
+  const editingType      = editing?.type ? editing.type.toLowerCase() : "expense";
+  const editingNecessity = editing?.necessity
+    ? fromApiNecessity(editing.necessity)
+    : "necessary";
+
+  const [type, setType]         = useState(editingType);
+  const [amount, setAmount]     = useState(editing ? String(parseFloat(editing.amount?.value ?? editing.amount ?? "")) : "");
+  const [currency, setCurrency] = useState(defaultCurrency);
+  const [note, setNote]         = useState(editing?.note ?? "");
   const [categoryId, setCategoryId] = useState(editing?.categoryId ?? null);
-  const [date, setDate]           = useState(editing?.date ?? new Date().toISOString().slice(0, 10));
+  const [date, setDate]         = useState(editing?.date ?? new Date().toISOString().slice(0, 10));
   const [necessity, setNecessity] = useState(editingNecessity);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState(null);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState(null);
+  const [success, setSuccess]   = useState(false);
 
-  // Derive selected category object for CategoryChips highlight
-  const selectedCategory = categories.find(c => c.categoryId === categoryId) ?? null;
+  // When type changes, auto-select first category of that type
+  const catsByType = {
+    expense:    categories.filter(c => !c.type || c.type === "expense"    || c.type === "EXPENSE"),
+    income:     categories.filter(c =>  c.type === "income"    || c.type === "INCOME"),
+    investment: categories.filter(c =>  c.type === "investment" || c.type === "INVESTMENT"),
+  };
+  // Fallback: if type-filtered is empty, show all categories
+  const visibleCats = (catsByType[type]?.length > 0 ? catsByType[type] : categories);
+  const selectedCategory = visibleCats.find(c => c.categoryId === categoryId) ?? null;
 
-  const currency = user?.currency ?? "EUR";
+  function switchType(t) {
+    setType(t);
+    const first = (catsByType[t]?.length > 0 ? catsByType[t] : categories)[0];
+    if (!editing) setCategoryId(first?.categoryId ?? null);
+  }
+
+  const accent      = type === "income" ? "#1D9E75" : type === "investment" ? "#378ADD" : "#D85A30";
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const parsedAmount = parseFloat(amount);
+    const parsedAmount = parseFloat(amount.replace(",", "."));
     if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
-      setError("Enter a valid amount");
-      return;
+      setError("Enter a valid amount"); return;
     }
     if (!categoryId) {
-      setError("Please select a category");
-      return;
+      setError("Please select a category"); return;
     }
     setLoading(true); setError(null);
     try {
       const payload = {
-        // API expects amount as { value: string, currency: string }
         amount:     { value: String(parsedAmount), currency },
-        categoryId: categoryId,
+        categoryId,
         date,
         name:       note || type,
         note:       note || "",
-        // API expects uppercase: "EXPENSE" | "INCOME" | "INVESTMENT"
         type:       type.toUpperCase(),
-        // API expects uppercase: "NEED" | "WANT"
-        necessity:  type === "expense" ? (necessity === "necessity" ? "NEED" : "WANT") : "WANT",
+        necessity:  type === "expense"
+          ? (necessity === "necessary" ? "NEED" : "WANT")
+          : "WANT",
       };
       if (editing) {
         await updateEntry(editing.entryId, payload);
+        navigate("/history");
       } else {
         await createEntry(payload);
+        setAmount("");
+        setNote("");
+        setDate(new Date().toISOString().slice(0, 10));
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
       }
-      navigate("/history");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -72,106 +95,161 @@ export function AddPage({ user }) {
     }
   }
 
-  const inputClass = "w-full bg-gray-100 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-green";
+  const labelClass = "text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 block";
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
-      <h1 className="text-2xl font-bold">{editing ? "Edit Entry" : "Add Entry"}</h1>
       <FeedbackBanner message={error} onDismiss={() => setError(null)} />
+      <FeedbackBanner message={success ? "Entry added" : null} type="success" onDismiss={() => setSuccess(false)} />
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Type toggle */}
-        <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-neutral-700">
-          {["expense", "income"].map(t => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setType(t)}
-              className={`flex-1 py-3 text-sm font-semibold transition-colors capitalize ${
-                type === t
-                  ? t === "expense" ? "bg-brand-red text-white" : "bg-brand-green text-white"
-                  : "bg-gray-50 dark:bg-neutral-800 text-gray-500"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
+      <form onSubmit={handleSubmit} className="space-y-5">
+
+        {/* Type toggle — 3 bordered cards like mobile */}
+        <div className="flex gap-2">
+          {[
+            { id: "expense",    label: "💸 Expense",  borderColor: "#D85A30", bgLight: "#FAECE7", textDark: "#993C1D" },
+            { id: "income",     label: "💰 Income",   borderColor: "#1D9E75", bgLight: "#E1F5EE", textDark: "#0F6E56" },
+            { id: "investment", label: "📈 Invest",   borderColor: "#378ADD", bgLight: "#DBEEFF", textDark: "#1565C0" },
+          ].map(t => {
+            const isActive = type === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => switchType(t.id)}
+                className="flex-1 py-3 rounded-xl border-2 text-sm font-semibold transition-colors"
+                style={{
+                  borderColor: isActive ? t.borderColor : "#e5e7eb",
+                  backgroundColor: isActive ? t.bgLight : "transparent",
+                  color: isActive ? t.textDark : "#9ca3af",
+                }}
+              >
+                {t.label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Amount */}
-        <input
-          type="number"
-          inputMode="decimal"
-          min="0"
-          step="0.01"
-          value={amount}
-          onChange={e => setAmount(e.target.value)}
-          placeholder="0.00"
-          required
-          className={inputClass}
-        />
-
-        {/* Note */}
-        <input
-          type="text"
-          value={note}
-          onChange={e => setNote(e.target.value)}
-          placeholder="Note (optional)"
-          className={inputClass}
-        />
-
-        {/* Date */}
-        <input
-          type="date"
-          value={date}
-          onChange={e => setDate(e.target.value)}
-          className={inputClass}
-        />
-
-        {/* Category chips */}
-        {categories.length > 0 && (
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Category</p>
-            <CategoryChips
-              categories={categories}
-              selected={selectedCategory}
-              onSelect={cat => setCategoryId(cat.categoryId)}
-            />
+        {/* Amount + currency */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className={labelClass}>Amount</label>
+            <select
+              value={currency}
+              onChange={e => setCurrency(e.target.value)}
+              className="bg-brand-greenLight border border-brand-greenBorder text-brand-greenDark rounded-lg px-2 py-1 text-xs font-semibold outline-none focus:ring-2 focus:ring-brand-green"
+            >
+              {currencies.length === 0
+                ? <option value={currency}>{currency}</option>
+                : currencies.map(c => <option key={c.code} value={c.code}>{c.code}</option>)
+              }
+            </select>
           </div>
-        )}
+          <input
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+            placeholder="0.00"
+            required
+            className="w-full bg-gray-100 dark:bg-neutral-800 rounded-xl px-4 py-4 text-3xl font-bold font-mono text-center placeholder-gray-300 outline-none focus:ring-2"
+            style={{ borderWidth: "2px", borderColor: accent }}
+          />
+        </div>
 
-        {/* Necessity toggle (expenses only) */}
+        {/* Necessity — expense only, icon+subtitle cards like mobile */}
         {type === "expense" && (
           <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Type</p>
-            <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-neutral-700">
-              {[
-                { value: "necessity", label: "Necessity" },
-                { value: "want",      label: "Want"      },
-              ].map(n => (
-                <button
-                  key={n.value}
-                  type="button"
-                  onClick={() => setNecessity(n.value)}
-                  className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
-                    necessity === n.value
-                      ? "bg-brand-amber text-white"
-                      : "bg-gray-50 dark:bg-neutral-800 text-gray-500"
-                  }`}
-                >
-                  {n.label}
-                </button>
-              ))}
+            <label className={labelClass}>Type</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setNecessity("necessary")}
+                className="flex-1 flex items-center gap-3 px-3 py-3 rounded-xl border-2 transition-colors text-left"
+                style={{
+                  borderColor: necessity === "necessary" ? "#D85A30" : "#e5e7eb",
+                  backgroundColor: necessity === "necessary" ? "#FAECE7" : "transparent",
+                }}
+              >
+                <span className="text-2xl">🔒</span>
+                <div>
+                  <p className={`text-sm font-bold ${necessity === "necessary" ? "text-brand-redDark" : "text-gray-600 dark:text-gray-300"}`}>
+                    Necessary
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Can't cut this</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setNecessity("optional")}
+                className="flex-1 flex items-center gap-3 px-3 py-3 rounded-xl border-2 transition-colors text-left"
+                style={{
+                  borderColor: necessity === "optional" ? "#EF9F27" : "#e5e7eb",
+                  backgroundColor: necessity === "optional" ? "#FAEEDA" : "transparent",
+                }}
+              >
+                <span className="text-2xl">✂️</span>
+                <div>
+                  <p className={`text-sm font-bold ${necessity === "optional" ? "text-brand-amberDark" : "text-gray-600 dark:text-gray-300"}`}>
+                    Optional
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Could save here</p>
+                </div>
+              </button>
             </div>
           </div>
         )}
 
+        {/* Category */}
+        {visibleCats.length > 0 && (
+          <div>
+            <label className={labelClass}>Category</label>
+            <CategoryChips
+              categories={visibleCats}
+              selected={selectedCategory}
+              onSelect={cat => setCategoryId(cat.categoryId)}
+              colorMap={colorMap}
+            />
+          </div>
+        )}
+
+        {/* Note */}
+        <div>
+          <label className={labelClass}>Note (optional)</label>
+          <input
+            type="text"
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            placeholder="What was it for?"
+            className={INPUT_CLASS}
+          />
+        </div>
+
+        {/* Date */}
+        <div>
+          <label className={labelClass}>Date</label>
+          <input
+            type="date"
+            value={date}
+            onChange={e => setDate(e.target.value)}
+            className={INPUT_CLASS}
+          />
+        </div>
+
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-brand-green text-white rounded-xl py-3 font-semibold text-sm disabled:opacity-50 flex justify-center items-center"
+          className="w-full text-white rounded-xl py-4 font-semibold text-base disabled:opacity-50 flex justify-center items-center"
+          style={{ backgroundColor: accent }}
         >
-          {loading ? <Spinner size={5} /> : editing ? "Save changes" : "Add entry"}
+          {loading
+            ? <Spinner size={5} />
+            : editing
+            ? "Save changes"
+            : type === "investment" ? "Add investment" : `Add ${type}`
+          }
         </button>
       </form>
     </div>
