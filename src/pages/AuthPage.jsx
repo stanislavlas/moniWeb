@@ -3,6 +3,8 @@ import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 import { PasswordInput } from "../components/PasswordInput.jsx";
 import { CurrencyPicker } from "../components/CurrencyPicker.jsx";
 import { Spinner } from "../components/Spinner.jsx";
+import { useCurrencies } from "../hooks/useCurrencies.js";
+import { INPUT_CLASS } from "../utils/styles.js";
 import {
   forgotPassword as apiForgotPassword,
   resetPassword as apiResetPassword,
@@ -21,22 +23,40 @@ export function AuthPage({
   const [otpCode, setOtpCode]             = useState("");
   const [localError, setLocalError]       = useState(null);
   const [localLoading, setLocalLoading]   = useState(false);
+  const [localSuccess, setLocalSuccess]   = useState(null);
   const [resetCodeSent, setResetCodeSent] = useState(false);
   const [resetCode, setResetCode]         = useState("");
   const [newPassword, setNewPassword]     = useState("");
   const [confirmNewPw, setConfirmNewPw]   = useState("");
+  const { currencies } = useCurrencies();
 
   const displayError = localError || error;
   const isLoading = loading || localLoading;
 
+
   function switchMode(m) {
     setMode(m);
     setLocalError(null);
+    setLocalSuccess(null);
     setResetCodeSent(false);
     setResetCode("");
     setNewPassword("");
     setConfirmNewPw("");
     onClearError?.();
+  }
+
+  async function handleResetPassword() {
+    if (newPassword !== confirmNewPw) { setLocalError("Passwords do not match"); return; }
+    setLocalLoading(true); setLocalError(null);
+    try {
+      await apiResetPassword(resetCode, newPassword);
+      setLocalSuccess("Password reset successfully. Please sign in.");
+      switchMode("login");
+    } catch (err) {
+      setLocalError(err.message);
+    } finally {
+      setLocalLoading(false);
+    }
   }
 
   async function handleSubmit(e) {
@@ -53,18 +73,9 @@ export function AuthPage({
       setLocalLoading(true);
       try {
         await apiForgotPassword(email);
+        setResetCode("");
+        setLocalSuccess("Code sent to your email.");
         setResetCodeSent(true);
-      } catch (err) {
-        setLocalError(err.message);
-      } finally {
-        setLocalLoading(false);
-      }
-    } else if (mode === "reset") {
-      if (newPassword !== confirmNewPw) { setLocalError("Passwords do not match"); return; }
-      setLocalLoading(true);
-      try {
-        await apiResetPassword(resetCode, newPassword);
-        switchMode("login");
       } catch (err) {
         setLocalError(err.message);
       } finally {
@@ -72,8 +83,6 @@ export function AuthPage({
       }
     }
   }
-
-  const inputClass = "w-full bg-gray-100 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-green";
 
   // OTP verification screen
   if (pendingRegistration) {
@@ -89,7 +98,7 @@ export function AuthPage({
             value={otpCode}
             onChange={e => setOtpCode(e.target.value)}
             placeholder="6-digit code"
-            className={inputClass}
+            className={INPUT_CLASS}
           />
           <button
             onClick={() => onVerifyRegistration(otpCode)}
@@ -121,16 +130,17 @@ export function AuthPage({
         </h1>
 
         <FeedbackBanner message={displayError} onDismiss={() => { setLocalError(null); onClearError?.(); }} />
+        <FeedbackBanner message={localSuccess} type="success" onDismiss={() => setLocalSuccess(null)} />
 
         <form onSubmit={handleSubmit} className="space-y-3">
           {mode === "register" && (
             <input type="text" value={name} onChange={e => setName(e.target.value)}
-              placeholder="Full name" required className={inputClass} />
+              placeholder="Full name" required className={INPUT_CLASS} />
           )}
 
-          {(mode === "login" || mode === "register" || mode === "forgot") && (
+          {(mode === "login" || mode === "register" || (mode === "forgot" && !resetCodeSent)) && (
             <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="Email" required className={inputClass} />
+              placeholder="Email" required className={INPUT_CLASS} />
           )}
 
           {(mode === "login" || mode === "register") && (
@@ -142,7 +152,7 @@ export function AuthPage({
               <PasswordInput value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Confirm password" />
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Currency</label>
-                <CurrencyPicker value={currency} onChange={setCurrency} />
+                <CurrencyPicker value={currency} onChange={setCurrency} currencies={currencies} />
               </div>
             </>
           )}
@@ -150,19 +160,19 @@ export function AuthPage({
           {mode === "reset" && (
             <>
               <input type="text" value={resetCode} onChange={e => setResetCode(e.target.value)}
-                placeholder="Reset code from email" required className={inputClass} />
+                placeholder="Reset code from email" required className={INPUT_CLASS} />
               <PasswordInput value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password" />
               <PasswordInput value={confirmNewPw} onChange={e => setConfirmNewPw(e.target.value)} placeholder="Confirm new password" />
             </>
           )}
 
           {mode === "forgot" && resetCodeSent && (
-            <p className="text-sm text-brand-green">
-              Code sent!{" "}
-              <button type="button" onClick={() => switchMode("reset")} className="underline font-semibold">
-                Enter code
-              </button>
-            </p>
+            <>
+              <input type="text" inputMode="numeric" autoComplete="one-time-code" value={resetCode} onChange={e => setResetCode(e.target.value)}
+                placeholder="6-digit code" required className={INPUT_CLASS} />
+              <PasswordInput value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password" />
+              <PasswordInput value={confirmNewPw} onChange={e => setConfirmNewPw(e.target.value)} placeholder="Confirm new password" />
+            </>
           )}
 
           {!(mode === "forgot" && resetCodeSent) && (
@@ -172,6 +182,14 @@ export function AuthPage({
                mode === "login"    ? "Sign in"          :
                mode === "register" ? "Create account"   :
                mode === "forgot"   ? "Send reset code"  : "Set new password"}
+            </button>
+          )}
+
+          {mode === "forgot" && resetCodeSent && (
+            <button type="button" disabled={isLoading}
+              onClick={handleResetPassword}
+              className="w-full bg-brand-green text-white rounded-xl py-3 font-semibold text-sm disabled:opacity-50 flex justify-center items-center">
+              {isLoading ? <Spinner size={5} /> : "Set new password"}
             </button>
           )}
         </form>
@@ -193,6 +211,7 @@ export function AuthPage({
             </button>
           )}
         </div>
+
       </div>
     </div>
   );
