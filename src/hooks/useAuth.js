@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useAsyncAction } from "./useAsyncAction.js";
 import {
   getStoredUser,
   login as apiLogin,
@@ -14,9 +15,9 @@ import {
 export function useAuth() {
   const [user, setUser]                   = useState(null);
   const [ready, setReady]                 = useState(false);
-  const [loading, setLoading]             = useState(false);
-  const [error, setError]                 = useState(null);
   const [pendingRegistration, setPending] = useState(null); // { email, ... }
+
+  const { loading, error, run: withLoading, clearError } = useAsyncAction();
 
   useEffect(() => {
     const stored = getStoredUser();
@@ -24,55 +25,46 @@ export function useAuth() {
     setReady(true);
   }, []);
 
-  const clearError = useCallback(() => setError(null), []);
+  // Auto-logout when any authRequest detects an expired/invalid session
+  useEffect(() => {
+    function handleExpired() { setUser(null); }
+    window.addEventListener("auth:expired", handleExpired);
+    return () => window.removeEventListener("auth:expired", handleExpired);
+  }, []);
 
   const login = useCallback(async (credentials) => {
-    setLoading(true); setError(null);
     try {
-      const u = await apiLogin(credentials);
-      setUser(u);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      await withLoading(async () => {
+        const u = await apiLogin(credentials);
+        setUser(u);
+      });
+    } catch { /* error already stored in state */ }
+  }, [withLoading]);
 
   const register = useCallback(async (data) => {
-    setLoading(true); setError(null);
     try {
-      const result = await apiRegister(data);
-      setPending({ email: data.email, ...result });
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      await withLoading(async () => {
+        const result = await apiRegister(data);
+        setPending({ email: data.email, ...result });
+      });
+    } catch { /* error already stored in state */ }
+  }, [withLoading]);
 
   const verifyRegistration = useCallback(async (code) => {
-    setLoading(true); setError(null);
     try {
-      const u = await apiVerify(code);
-      setUser(u);
-      setPending(null);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      await withLoading(async () => {
+        const u = await apiVerify(code);
+        setUser(u);
+        setPending(null);
+      });
+    } catch { /* error already stored in state */ }
+  }, [withLoading]);
 
   const resendRegistrationCode = useCallback(async (email) => {
-    setLoading(true); setError(null);
     try {
-      await apiResend(email);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      await withLoading(() => apiResend(email));
+    } catch { /* error already stored in state */ }
+  }, [withLoading]);
 
   const cancelRegistrationVerification = useCallback(() => setPending(null), []);
 
@@ -82,42 +74,25 @@ export function useAuth() {
   }, []);
 
   const deleteAccount = useCallback(async (password) => {
-    setLoading(true); setError(null);
     try {
-      await apiDelete(password);
-      setUser(null);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      await withLoading(async () => {
+        await apiDelete(password);
+        setUser(null);
+      });
+    } catch { /* error already stored in state */ }
+  }, [withLoading]);
 
   const changePassword = useCallback(async (data) => {
-    setLoading(true); setError(null);
-    try {
-      await apiChangePassword(data);
-    } catch (e) {
-      setError(e.message);
-      throw e;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    return withLoading(() => apiChangePassword(data));
+  }, [withLoading]);
 
   const updateProfile = useCallback(async (patch) => {
-    setLoading(true); setError(null);
-    try {
+    return withLoading(async () => {
       const updated = await apiUpdateProfile(patch);
       setUser(updated);
       return updated;
-    } catch (e) {
-      setError(e.message);
-      throw e;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    });
+  }, [withLoading]);
 
   return {
     user,
