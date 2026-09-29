@@ -27,7 +27,7 @@ self.addEventListener('push', (event) => {
     badge: '/logo.png',
     vibrate: [0, 250, 100, 250],
     tag: 'moni_expense_reminder',
-    renotify: false,
+    renotify: true,
   };
 
   const isLocalhost = self.location.hostname === 'localhost'

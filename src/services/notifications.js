@@ -40,7 +40,7 @@ export async function registerServiceWorker() {
     logger.info("notifications", "Service worker registered");
     return registration;
   } catch (err) {
-    logger.error("notifications", `Service worker registration failed: ${err.message}`);
+    logger.error("notifications", "Service worker registration failed", err);
     return null;
   }
 }
@@ -76,7 +76,7 @@ async function subscribeToPush(registration) {
     logger.info("notifications", "Push subscription created");
     return subscription;
   } catch (err) {
-    logger.error("notifications", `Push subscribe failed: ${err.message}`);
+    logger.error("notifications", "Push subscribe failed", err);
     return null;
   }
 }
@@ -161,7 +161,10 @@ export async function applyNotificationPreferences(prefs) {
   }
 
   const subscription = await subscribeToPush(registration);
-  if (!subscription) return { permissionDenied: false };
+  if (!subscription) {
+    logger.warn("notifications", "subscribeToPush returned null — push subscription was not created");
+    return { permissionDenied: false };
+  }
 
   await sendSubscriptionToServer(subscription);
   logger.info("notifications", "Push subscription sent to server");
@@ -179,6 +182,6 @@ export async function ensureServiceWorkerRegistered() {
   try {
     await navigator.serviceWorker.register(SW_PATH, { scope: '/' });
   } catch (err) {
-    logger.error('notifications', `SW registration failed: ${err.message}`);
+    logger.error('notifications', `SW registration failed`, err);
   }
 }
