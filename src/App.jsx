@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "./hooks/useAuth.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { HouseholdProvider, useHouseholdContext } from "./contexts/HouseholdContext.jsx";
+import { CategoriesProvider } from "./contexts/CategoriesContext.jsx";
 import { NavBar } from "./components/NavBar.jsx";
 import { PrivateRoute } from "./components/PrivateRoute.jsx";
 import { Spinner } from "./components/Spinner.jsx";
@@ -118,7 +119,9 @@ export default function App() {
           the future, consider wrapping individual pages instead. */}
       <ErrorBoundary>
         <HouseholdProvider>
-          <AppContent />
+          <CategoriesProvider>
+            <AppContent />
+          </CategoriesProvider>
         </HouseholdProvider>
       </ErrorBoundary>
     </BrowserRouter>

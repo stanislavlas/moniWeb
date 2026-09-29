@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useHouseholdContext } from "../contexts/HouseholdContext.jsx";
 import { PendingInvitationsCard } from "../components/account/PendingInvitationsCard.jsx";
 import { ProfileSection }       from "../components/account/ProfileSection.jsx";
@@ -20,9 +20,8 @@ const SECTIONS = [
 export function AccountPage({ user, onChangePassword, onUpdateProfile, onDeleteAccount }) {
   const [section, setSection] = useState("profile");
 
-  // Load pending invitations for the banner that appears on all tabs
-  const { pendingInvitations, loaded: householdLoaded, load: loadHousehold, acceptInvitation, rejectInvitation } = useHouseholdContext();
-  useEffect(() => { loadHousehold(); }, [loadHousehold]);
+  // Pending invitations — loading state now tracked per-invitation inside the component
+  const { pendingInvitations, loaded: householdLoaded, acceptInvitation, rejectInvitation } = useHouseholdContext();
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-6">

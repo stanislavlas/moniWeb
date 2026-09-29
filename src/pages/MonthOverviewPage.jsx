@@ -1,18 +1,17 @@
 import { useEffect, useState, useMemo } from "react";
-import { useCategories } from "../hooks/useCategories.js";
+import { useCategoriesContext } from "../contexts/CategoriesContext.jsx";
 import { useMonthCache } from "../hooks/useMonthCache.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 import { NecessityBreakdown } from "../components/NecessityBreakdown.jsx";
 import { SummaryPills } from "../components/SummaryPills.jsx";
-import { MONTHS_SHORT, getAmount, formatCurrency, sumEntriesByType, sumNecessity } from "../utils/money.js";
+import { MONTHS_SHORT, getAmount, formatCurrency, formatYearMonth, sumEntriesByType, sumNecessity } from "../utils/money.js";
 
 export function MonthOverviewPage({ user, showHousehold = false }) {
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
-  const { categories, load: loadCats, colorMap } = useCategories();
+  const { categories, colorMap } = useCategoriesContext();
   const { activeMonths, monthCache, fetchMonth } = useMonthCache(showHousehold);
 
-  useEffect(() => { loadCats(); }, [loadCats]);
   useEffect(() => { fetchMonth(filterMonth); }, [filterMonth, fetchMonth]);
 
   const currentData = monthCache[filterMonth] ?? { entries: [], loading: true, error: null };
@@ -20,8 +19,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
   const loading     = currentData.loading;
   const error       = currentData.error;
 
-  const [year, month] = filterMonth.split("-");
-  const monthLabel = `${MONTHS_SHORT[parseInt(month, 10) - 1]} ${year}`;
+  const monthLabel = formatYearMonth(filterMonth);
 
   const currency = user?.currency ?? "EUR";
   const fmt = (v) => formatCurrency(v, currency);
@@ -56,10 +54,11 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
     const map = {};
     entries.forEach(e => {
       if (!e.authorName) return;
-      if (e.type !== "INCOME" && e.type !== "EXPENSE") return;
-      if (!map[e.authorName]) map[e.authorName] = { income: 0, expense: 0 };
-      if (e.type === "INCOME")  map[e.authorName].income  += getAmount(e);
-      if (e.type === "EXPENSE") map[e.authorName].expense += getAmount(e);
+      if (e.type !== "INCOME" && e.type !== "EXPENSE" && e.type !== "INVESTMENT") return;
+      if (!map[e.authorName]) map[e.authorName] = { income: 0, expense: 0, invested: 0 };
+      if (e.type === "INCOME")     map[e.authorName].income   += getAmount(e);
+      if (e.type === "EXPENSE")    map[e.authorName].expense  += getAmount(e);
+      if (e.type === "INVESTMENT") map[e.authorName].invested += getAmount(e);
     });
     return Object.entries(map);
   }, [entries, showHousehold]);
@@ -161,8 +160,9 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
                   </div>
                   <span className="text-sm text-gray-700 dark:text-gray-200 flex-1">{name}</span>
                   <div className="flex flex-col items-end">
-                    {t.income  > 0 && <span className="text-xs font-mono text-brand-green">+{fmt(t.income)}</span>}
-                    {t.expense > 0 && <span className="text-xs font-mono text-brand-red">−{fmt(t.expense)}</span>}
+                    {t.income   > 0 && <span className="text-xs font-mono text-brand-green">+{fmt(t.income)}</span>}
+                    {t.expense  > 0 && <span className="text-xs font-mono text-brand-red">−{fmt(t.expense)}</span>}
+                    {t.invested > 0 && <span className="text-xs font-mono text-brand-blue">↗{fmt(t.invested)}</span>}
                   </div>
                 </div>
               ))}

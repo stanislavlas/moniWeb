@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { FeedbackBanner } from "../FeedbackBanner.jsx";
 import { Spinner } from "../Spinner.jsx";
 import { useHouseholdContext } from "../../contexts/HouseholdContext.jsx";
+import { useAsyncAction } from "../../hooks/useAsyncAction.js";
 import { PendingInvitationsCard } from "./PendingInvitationsCard.jsx";
 import { HouseholdMemberList } from "./HouseholdMemberList.jsx";
 import { CreateHouseholdForm } from "./CreateHouseholdForm.jsx";
@@ -11,18 +12,19 @@ export function HouseholdSection({ user, onUpdateProfile }) {
   const {
     household, loaded: householdLoaded, error: householdError,
     pendingInvitations,
-    load: loadHousehold, create, sendInvitation,
+    reload: reloadHousehold, create, sendInvitation,
     acceptInvitation, rejectInvitation, cancelInvitation,
     loadSentInvitations, sentInvitations,
     removeMember, leave, deleteHousehold, rename,
+    clearError: clearHouseholdError,
   } = useHouseholdContext();
+
+  const { loading: actionLoading, error: actionError, run, clearError: clearActionError } = useAsyncAction();
 
   const [view, setView]               = useState("main"); // main | invite | rename
   const [householdName, setHouseholdName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [renameValue, setRenameValue] = useState("");
-  const [actionError, setActionError]     = useState(null);
-  const [actionLoading, setActionLoading] = useState(false);
   const [actionSuccess, setActionSuccess] = useState(null);
 
   function showSuccess(msg) {
@@ -32,16 +34,8 @@ export function HouseholdSection({ user, onUpdateProfile }) {
 
   const isOwner = household && user && household.ownerId === user.userId;
 
-  useEffect(() => { loadHousehold(); }, [loadHousehold]);
-  useEffect(() => { if (isOwner) loadSentInvitations().catch(() => {}); }, [isOwner, loadSentInvitations]);
+  useEffect(() => { if (isOwner) loadSentInvitations(); }, [isOwner, loadSentInvitations]);
   useEffect(() => { if (household?.name) setRenameValue(household.name); }, [household?.name]);
-
-  async function run(fn) {
-    setActionLoading(true); setActionError(null);
-    try { return await fn(); }
-    catch (err) { setActionError(err.message); throw err; }
-    finally { setActionLoading(false); }
-  }
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -99,7 +93,8 @@ export function HouseholdSection({ user, onUpdateProfile }) {
 
   return (
     <div className="space-y-6">
-      <FeedbackBanner message={householdError || actionError} onDismiss={() => setActionError(null)} />
+      <FeedbackBanner message={householdError} type="error" onDismiss={clearHouseholdError} />
+      <FeedbackBanner message={actionError} type="error" onDismiss={clearActionError} />
       <FeedbackBanner message={actionSuccess} type="success" onDismiss={() => setActionSuccess(null)} />
 
       {!householdLoaded && !householdError && (
@@ -119,7 +114,7 @@ export function HouseholdSection({ user, onUpdateProfile }) {
       {householdLoaded && !household && householdError && (
         <div className="text-center py-8 space-y-3">
           <p className="text-gray-400 text-sm">Could not load household data.</p>
-          <button onClick={() => loadHousehold()} className="px-4 py-2 rounded-xl bg-brand-green text-white text-sm font-semibold">
+          <button onClick={() => reloadHousehold()} className="px-4 py-2 rounded-xl bg-brand-green text-white text-sm font-semibold">
             Retry
           </button>
         </div>
@@ -222,17 +217,10 @@ export function HouseholdSection({ user, onUpdateProfile }) {
                     <p className="text-xs text-gray-400">Waiting for response</p>
                   </div>
                   <button
-                    onClick={async () => {
-                      try {
-                        setActionLoading(true);
-                        await cancelInvitation(inv.invitationId);
-                        showSuccess("Invitation cancelled.");
-                      } catch (e) {
-                        setActionError(e.message ?? "Failed to cancel invitation.");
-                      } finally {
-                        setActionLoading(false);
-                      }
-                    }}
+                    onClick={() => run(async () => {
+                      await cancelInvitation(inv.invitationId);
+                      showSuccess("Invitation cancelled.");
+                    })}
                     disabled={actionLoading}
                     className="text-xs text-brand-red hover:underline disabled:opacity-50"
                   >

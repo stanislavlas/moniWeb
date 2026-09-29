@@ -13,6 +13,7 @@ export function PasswordInput({ value, onChange, placeholder, className = "" }) 
       />
       <button
         type="button"
+        aria-label={show ? "Hide password" : "Show password"}
         onClick={() => setShow(s => !s)}
         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium"
       >

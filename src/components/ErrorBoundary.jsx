@@ -17,12 +17,14 @@ export class ErrorBoundary extends Component {
 
   render() {
     if (this.state.error) {
+      // Only expose the raw error message in development — avoid leaking internals in production
+      const isDev = import.meta.env?.DEV ?? false;
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-8">
           <div className="max-w-lg w-full bg-white rounded-2xl border border-red-200 p-6 space-y-3">
             <h1 className="text-lg font-bold text-brand-red">Something went wrong</h1>
             <pre className="text-xs text-gray-500 whitespace-pre-wrap break-all bg-gray-50 rounded-xl p-4">
-              {this.state.error.message}
+              {isDev ? this.state.error.message : "An unexpected error occurred. Please reload the page."}
             </pre>
             <button
               onClick={() => window.location.reload()}

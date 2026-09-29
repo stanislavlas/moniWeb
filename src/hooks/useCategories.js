@@ -8,13 +8,20 @@ const COLOR_PALETTE = [
   "#993556","#63B3ED","#888780","#F0997B","#AFA9EC",
 ];
 
+// Derive a stable palette index from categoryId so color is consistent across sessions.
+// Falls back to array index for categories that don't have an id yet.
+function stableColorIndex(id, fallbackIndex) {
+  if (!id) return fallbackIndex % COLOR_PALETTE.length;
+  return [...String(id)].reduce((acc, c) => acc + c.charCodeAt(0), 0) % COLOR_PALETTE.length;
+}
+
 // Normalize API response: ensure icon field is populated from emoji if missing
 function normalizeCategory(cat, index) {
   return {
     ...cat,
     icon:  cat.icon  ?? cat.emoji ?? "",
     emoji: cat.emoji ?? cat.icon  ?? "",
-    color: cat.color || COLOR_PALETTE[index % COLOR_PALETTE.length],
+    color: cat.color || COLOR_PALETTE[stableColorIndex(cat.categoryId, index)],
     type:  (cat.type ?? "").toLowerCase(),
   };
 }

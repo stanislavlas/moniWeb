@@ -3,6 +3,7 @@ import { useAsyncAction } from "./useAsyncAction.js";
 import { logger } from "../utils/logger.js";
 import {
   getStoredUser,
+  getProfile as apiGetProfile,
   login as apiLogin,
   register as apiRegister,
   verifyRegistration as apiVerify,
@@ -25,6 +26,10 @@ export function useAuth() {
     if (stored) {
       logger.auth(`Session restored: ${stored.email}`);
       setUser(stored);
+      // Fetch fresh profile in the background to sync any changes made on other devices
+      apiGetProfile()
+        .then((fresh) => setUser(fresh))
+        .catch(() => {}); // Non-critical — cached value is still usable
     }
     setReady(true);
   }, []);

@@ -47,12 +47,19 @@ export function AuthPage({
 
   async function handleResetPassword() {
     if (!resetCode.trim()) { setLocalError("Please enter the reset code"); return; }
+    if (newPassword.length < 8) { setLocalError("Password must be at least 8 characters"); return; }
     if (newPassword !== confirmNewPw) { setLocalError("Passwords do not match"); return; }
     setLocalLoading(true); setLocalError(null);
     try {
       await apiResetPassword(resetCode, newPassword);
+      // Set success first, then switch mode — avoids switchMode clearing the success message
       setLocalSuccess("Password reset successfully. Please sign in.");
-      switchMode("login");
+      setMode("login");
+      setResetCodeSent(false);
+      setResetCode("");
+      setNewPassword("");
+      setConfirmNewPw("");
+      onClearError?.();
     } catch (err) {
       setLocalError(err.message);
     } finally {
@@ -68,6 +75,7 @@ export function AuthPage({
     if (mode === "login") {
       onLogin({ email, password });
     } else if (mode === "register") {
+      if (password.length < 8) { setLocalError("Password must be at least 8 characters"); return; }
       if (password !== confirm) { setLocalError("Passwords do not match"); return; }
       onRegister({ name, email, password, currency });
     } else if (mode === "forgot") {
@@ -102,7 +110,12 @@ export function AuthPage({
             className={INPUT_CLASS}
           />
           <button
-            onClick={() => onVerifyRegistration(otpCode)}
+            onClick={() => {
+              if (!otpCode.trim() || otpCode.trim().length < 4) {
+                return; // don't send an empty or obviously short code
+              }
+              onVerifyRegistration(otpCode);
+            }}
             disabled={isLoading}
             className="w-full bg-brand-green text-white rounded-xl py-3 font-semibold text-sm disabled:opacity-50 flex justify-center items-center"
           >
@@ -127,7 +140,7 @@ export function AuthPage({
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
           {mode === "login"    ? "Sign in to Moni"  :
            mode === "register" ? "Create account"   :
-           mode === "forgot"   ? "Reset password"   : "Set new password"}
+           mode === "forgot" && !resetCodeSent ? "Reset password" : "Set new password"}
         </h1>
 
         <FeedbackBanner message={displayError} onDismiss={() => { setLocalError(null); onClearError?.(); }} />
@@ -158,15 +171,6 @@ export function AuthPage({
             </>
           )}
 
-          {mode === "reset" && (
-            <>
-              <input type="text" value={resetCode} onChange={e => setResetCode(e.target.value)}
-                placeholder="Reset code from email" required className={INPUT_CLASS} />
-              <PasswordInput value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password" />
-              <PasswordInput value={confirmNewPw} onChange={e => setConfirmNewPw(e.target.value)} placeholder="Confirm new password" />
-            </>
-          )}
-
           {mode === "forgot" && resetCodeSent && (
             <>
               <input type="text" inputMode="numeric" autoComplete="one-time-code" value={resetCode} onChange={e => setResetCode(e.target.value)}
@@ -182,7 +186,7 @@ export function AuthPage({
               {isLoading ? <Spinner size={5} /> :
                mode === "login"    ? "Sign in"          :
                mode === "register" ? "Create account"   :
-               mode === "forgot"   ? "Send reset code"  : "Set new password"}
+               "Send reset code"}
             </button>
           )}
 

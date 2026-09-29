@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { listEntriesByYear, listActiveYears } from "../services/entries.js";
 import { entryEvents } from "../utils/entryEvents.js";
-import { useCategories } from "../hooks/useCategories.js";
+import { useCategoriesContext } from "../contexts/CategoriesContext.jsx";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 import { NecessityBreakdown } from "../components/NecessityBreakdown.jsx";
@@ -21,9 +21,11 @@ export function YearOverviewPage({ user, showHousehold = false }) {
   const [activeYears, setActiveYears]     = useState([currentYear]);
   // Tracks years already fetched or in-flight — avoids dep on yearCache inside fetchYear
   const fetchedYears                      = useRef(new Set());
+  // Incremented when a mutation invalidates the currently-viewed year, triggering a re-fetch
+  const [refetchKey, setRefetchKey]       = useState(0);
 
-  const { categories, load: loadCats, colorMap } = useCategories();
-  useEffect(() => { loadCats(); }, [loadCats]);
+  const { categories, colorMap } = useCategoriesContext();
+  // categories/colorMap are loaded by CategoriesProvider — no local load needed
 
   // Fetch the distinct years that have data; always include current year
   useEffect(() => {
@@ -52,7 +54,7 @@ export function YearOverviewPage({ user, showHousehold = false }) {
     }
   }, [showHousehold]);
 
-  useEffect(() => { fetchYear(year); }, [year, fetchYear]);
+  useEffect(() => { fetchYear(year); }, [year, fetchYear, refetchKey]);
 
   // Invalidate a year's cache when an entry in that year is mutated
   useEffect(() => {
@@ -70,8 +72,12 @@ export function YearOverviewPage({ user, showHousehold = false }) {
       setActiveYears(prev =>
         prev.includes(affectedYear) ? prev : [...prev, affectedYear].sort((a, b) => b - a)
       );
+      // If the mutation affects the currently-viewed year, trigger a re-fetch
+      if (affectedYear === year) {
+        setRefetchKey(k => k + 1);
+      }
     });
-  }, []);
+  }, [year]);
 
   // Reset everything when household toggle changes
   useEffect(() => {

@@ -7,7 +7,8 @@ import { formatCurrency } from "../utils/money.js";
 export function NecessityBreakdown({ necessary, optional, total, currency }) {
   const fmt = (v) => formatCurrency(v, currency);
   const necessaryPct = total > 0 ? Math.round((necessary / total) * 100) : 0;
-  const optionalPct  = total > 0 ? Math.round((optional  / total) * 100) : 0;
+  // Derive optional from 100 to ensure the two values always sum to exactly 100
+  const optionalPct  = total > 0 ? 100 - necessaryPct : 0;
 
   return (
     <div className="space-y-2">

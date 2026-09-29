@@ -79,6 +79,7 @@ export function NavBar({ onLogout, theme, onToggleTheme, pendingCount = 0, house
             {household && (
               <button
                 onClick={onToggleView}
+                aria-label={showPersonalOnly ? "Show household view" : "Show personal view"}
                 className="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors"
                 style={showPersonalOnly
                   ? { borderColor: "#e5e7eb", color: "#6b7280", backgroundColor: "transparent" }
@@ -116,6 +117,7 @@ export function NavBar({ onLogout, theme, onToggleTheme, pendingCount = 0, house
             {household && (
               <button
                 onClick={onToggleView}
+                aria-label={showPersonalOnly ? "Show household view" : "Show personal view"}
                 className="px-2.5 py-1.5 rounded-lg text-sm font-medium border transition-colors"
                 style={showPersonalOnly
                   ? { borderColor: "#e5e7eb", color: "#6b7280", backgroundColor: "transparent" }
@@ -143,7 +145,7 @@ export function NavBar({ onLogout, theme, onToggleTheme, pendingCount = 0, house
       </header>
 
       {/* ── Mobile bottom nav ── */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-900 border-t border-gray-100 dark:border-neutral-800 flex safe-bottom">
+      <nav aria-label="Main navigation" className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-900 border-t border-gray-100 dark:border-neutral-800 flex safe-bottom">
         {TABS.map(tab => {
           const isAccount = tab.to === "/account" && pendingCount > 0;
           const isAdd = tab.to === "/add";
@@ -152,38 +154,42 @@ export function NavBar({ onLogout, theme, onToggleTheme, pendingCount = 0, house
             <NavLink
               key={tab.to}
               to={tab.to}
+              aria-label={tab.label}
               className="flex-1 flex flex-col items-center justify-center py-2 min-w-0"
             >
               {({ isActive }) => (
-                isAdd ? (
-                  <span
-                    className="flex items-center justify-center shadow-md text-[#6B63B5] dark:text-[#A89FD6] bg-[#E8E6F5] dark:bg-[#2D2B52]"
-                    style={{ width: 44, height: 44, borderRadius: 14, fontSize: 26, fontWeight: 300, lineHeight: 1 }}
-                  >
-                    +
-                  </span>
-                ) : (
-                  <>
-                    <span className="relative">
-                      <span style={{ fontSize: 20, lineHeight: 1 }}>{tab.emoji}</span>
-                      {isAccount && !isActive && (
-                        <span
-                          className="absolute bg-red-500 border border-white dark:border-neutral-900 rounded-full"
-                          style={{ width: 7, height: 7, top: -1, right: -2 }}
-                        />
-                      )}
-                    </span>
+                <>
+                  {isActive && <span className="sr-only">(current page)</span>}
+                  {isAdd ? (
                     <span
-                      className="text-[10px] mt-0.5 leading-none"
-                      style={{
-                        color: isActive ? "#1D9E75" : "#9ca3af",
-                        fontWeight: isActive ? 700 : 400,
-                      }}
+                      className="flex items-center justify-center shadow-md text-[#6B63B5] dark:text-[#A89FD6] bg-[#E8E6F5] dark:bg-[#2D2B52]"
+                      style={{ width: 44, height: 44, borderRadius: 14, fontSize: 26, fontWeight: 300, lineHeight: 1 }}
                     >
-                      {tab.label}
+                      +
                     </span>
-                  </>
-                )
+                  ) : (
+                    <>
+                      <span className="relative">
+                        <span style={{ fontSize: 20, lineHeight: 1 }}>{tab.emoji}</span>
+                        {isAccount && !isActive && (
+                          <span
+                            className="absolute bg-red-500 border border-white dark:border-neutral-900 rounded-full"
+                            style={{ width: 7, height: 7, top: -1, right: -2 }}
+                          />
+                        )}
+                      </span>
+                      <span
+                        className="text-[10px] mt-0.5 leading-none"
+                        style={{
+                          color: isActive ? "#1D9E75" : "#9ca3af",
+                          fontWeight: isActive ? 700 : 400,
+                        }}
+                      >
+                        {tab.label}
+                      </span>
+                    </>
+                  )}
+                </>
               )}
             </NavLink>
           );

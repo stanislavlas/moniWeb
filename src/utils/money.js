@@ -35,13 +35,19 @@ export function getAmount(entry) {
 /**
  * Format a numeric value as a locale-sensitive currency string.
  * Falls back to EUR when no currency is supplied.
+ * Formatters are cached by currency code to avoid recreating Intl.NumberFormat
+ * on every render call — construction is expensive.
  */
+const _formatters = {};
 export function formatCurrency(value, currency = "EUR") {
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(value);
+  if (!_formatters[currency]) {
+    _formatters[currency] = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    });
+  }
+  return _formatters[currency].format(value);
 }
 
 /** Sum income, expense, and investment totals from a list of entries. */
@@ -60,6 +66,15 @@ export function sumNecessity(entries) {
     necessary: exp.filter(e => e.necessity === "NECESSARY" || e.necessity === "NEED").reduce((s, e) => s + getAmount(e), 0),
     optional:  exp.filter(e => e.necessity === "OPTIONAL"  || e.necessity === "WANT").reduce((s, e) => s + getAmount(e), 0),
   };
+}
+
+/**
+ * Format a YYYY-MM string as a human-readable month label, e.g. "Jan 2025".
+ * Eliminates the repeated split+index pattern across MonthOverviewPage, HistoryPage, and YearOverviewPage.
+ */
+export function formatYearMonth(ym) {
+  const [y, m] = ym.split("-");
+  return `${MONTHS_SHORT[parseInt(m, 10) - 1]} ${y}`;
 }
 
 /**

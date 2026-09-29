@@ -66,7 +66,8 @@ export function useMonthCache(showHousehold) {
     setActiveMonths(recentMonths(3));
   }, [showHousehold]);
 
-  // Invalidate a month when an entry in that month is mutated.
+  // Invalidate a month when an entry in that month is mutated, then immediately re-fetch
+  // so consumers see updated data without needing to change filterMonth.
   // fetchMonth is included so the closure always has the current showHousehold value.
   useEffect(() => {
     return entryEvents.subscribe(date => {
@@ -83,6 +84,8 @@ export function useMonthCache(showHousehold) {
       setActiveMonths(prev =>
         prev.includes(ym) ? prev : [...prev, ym].sort((a, b) => b.localeCompare(a))
       );
+      // Re-fetch the invalidated month so the UI updates without requiring filterMonth to change
+      fetchMonth(ym);
     });
   }, [fetchMonth]);
 

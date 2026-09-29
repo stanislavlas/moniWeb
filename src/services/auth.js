@@ -47,7 +47,8 @@ export async function refreshAccessToken() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken }),
   });
-  const data = await res.json();
+  // Parse body safely — endpoint may return a non-JSON error body on failure
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     logger.error('auth', 'Token refresh failed — session expired');
     clearTokens();
@@ -193,6 +194,14 @@ export async function deleteAccount(password) {
 
 export async function changePassword({ currentPassword, newPassword }) {
   return authRequest("/api/auth/password", { method: "PUT", body: JSON.stringify({ currentPassword, newPassword }) });
+}
+
+export async function getProfile() {
+  const data = await authRequest("/api/user");
+  const existing = getStoredUser();
+  const updated = { ...(existing ?? {}), ...data };
+  localStorage.setItem(KEY_USER, JSON.stringify(updated));
+  return updated;
 }
 
 export async function updateProfile(patch) {

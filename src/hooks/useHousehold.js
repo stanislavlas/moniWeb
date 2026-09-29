@@ -24,14 +24,33 @@ export function useHousehold() {
   const [sentInvitations, setSent]       = useState([]);
 
   const load = useCallback(async () => {
+    if (loaded) return; // already fetched — App.jsx is the sole trigger
     setLoading(true); setError(null);
     try {
       const [data, pending] = await Promise.all([apiGet(), apiGetPending().catch(() => [])]);
       setHousehold(data ?? null);
       setPending(pending ?? []);
+      setLoaded(true); // only mark loaded on success so callers can retry on failure
       logger.info('household', `load success: household=${data?.name ?? 'none'}, pending=${(pending ?? []).length}`);
     } catch (e) {
       logger.error('household', 'load error', e.message);
+      setError(e.message);
+      // loaded stays false — load() can be retried
+    } finally {
+      setLoading(false);
+    }
+  }, [loaded]);
+
+  // Force a fresh fetch regardless of loaded state — used by error retry buttons
+  const reload = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const [data, pending] = await Promise.all([apiGet(), apiGetPending().catch(() => [])]);
+      setHousehold(data ?? null);
+      setPending(pending ?? []);
+      logger.info('household', `reload success: household=${data?.name ?? 'none'}, pending=${(pending ?? []).length}`);
+    } catch (e) {
+      logger.error('household', 'reload error', e.message);
       setError(e.message);
     } finally {
       setLoading(false);
@@ -77,11 +96,11 @@ export function useHousehold() {
       const hh = await apiGet();
       setHousehold(hh ?? null);
     } catch {
-      // apiGet failed after acceptance — reload household via the full load function as fallback
-      await load();
+      // apiGet failed after acceptance — reload always fetches, ignoring the loaded guard
+      await reload();
     }
     return data;
-  }, [load]);
+  }, [reload]);
 
   const rejectInvitation = useCallback(async (invitationId) => {
     await apiReject(invitationId);
@@ -121,9 +140,10 @@ export function useHousehold() {
   return {
     household, loading, loaded, error,
     pendingInvitations, sentInvitations,
-    load, loadSentInvitations,
+    load, reload, loadSentInvitations,
     create, sendInvitation,
     acceptInvitation, rejectInvitation, cancelInvitation,
     removeMember, leave, deleteHousehold, rename,
+    clearError: () => setError(null),
   };
 }

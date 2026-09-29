@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { CategoryChips } from "../components/CategoryChips.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 import { Spinner } from "../components/Spinner.jsx";
-import { useCategories } from "../hooks/useCategories.js";
+import { useCategoriesContext } from "../contexts/CategoriesContext.jsx";
 import { useCurrencies } from "../hooks/useCurrencies.js";
 import { createEntry, updateEntry } from "../services/entries.js";
 import { INPUT_CLASS } from "../utils/styles.js";
@@ -15,12 +15,11 @@ export function AddPage({ user }) {
   const location = useLocation();
   const editing  = location.state?.entry ?? null;
 
-  const { categories, load: loadCats, colorMap } = useCategories();
-  useEffect(() => { loadCats(); }, [loadCats]);
+  const { categories, colorMap } = useCategoriesContext();
 
   const { currencies } = useCurrencies();
 
-  const defaultCurrency = editing?.currency ?? editing?.amount?.currency ?? user?.currency ?? "EUR";
+  const defaultCurrency = editing?.currency || editing?.amount?.currency || user?.currency || "EUR";
 
   const editingType      = editing?.type ? editing.type.toLowerCase() : "expense";
   const editingNecessity = editing?.necessity
@@ -37,12 +36,17 @@ export function AddPage({ user }) {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
   const [success, setSuccess]   = useState(false);
+  const successTimerRef         = useRef(null);
+
+  // Clear the success timer on unmount to avoid state updates on an unmounted component
+  useEffect(() => () => clearTimeout(successTimerRef.current), []);
 
   // When type changes, auto-select first category of that type
+  // Note: useCategories normalizes `type` to lowercase, so no uppercase variants needed
   const catsByType = {
-    expense:    categories.filter(c => !c.type || c.type === "expense"    || c.type === "EXPENSE"),
-    income:     categories.filter(c =>  c.type === "income"    || c.type === "INCOME"),
-    investment: categories.filter(c =>  c.type === "investment" || c.type === "INVESTMENT"),
+    expense:    categories.filter(c => !c.type || c.type === "expense"),
+    income:     categories.filter(c => c.type === "income"),
+    investment: categories.filter(c => c.type === "investment"),
   };
   // Fallback: if type-filtered is empty, show all categories
   const visibleCats = (catsByType[type]?.length > 0 ? catsByType[type] : categories);
@@ -51,14 +55,15 @@ export function AddPage({ user }) {
   function switchType(t) {
     setType(t);
     const first = (catsByType[t]?.length > 0 ? catsByType[t] : categories)[0];
-    if (!editing) setCategoryId(first?.categoryId ?? null);
+    // Always reset category when type changes — keeps entry type and category in sync
+    setCategoryId(first?.categoryId ?? null);
   }
 
   const accent      = type === "income" ? "#1D9E75" : type === "investment" ? "#378ADD" : "#D85A30";
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const parsedAmount = parseFloat(amount.replace(",", "."));
+    const parsedAmount = parseFloat(amount.replace(/,/g, "."));
     if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
       setError("Enter a valid amount"); return;
     }
@@ -79,6 +84,10 @@ export function AddPage({ user }) {
           : "NECESSARY",
       };
       if (editing) {
+        // Invalidate the original month first (in case the date changed)
+        if (editing.date && editing.date.slice(0, 7) !== date.slice(0, 7)) {
+          entryEvents.emit(editing.date);
+        }
         await updateEntry(editing.entryId, payload);
         entryEvents.emit(date);
         navigate("/history");
@@ -89,7 +98,8 @@ export function AddPage({ user }) {
         setNote("");
         setDate(new Date().toISOString().slice(0, 10));
         setSuccess(true);
-        setTimeout(() => setSuccess(false), 3000);
+        clearTimeout(successTimerRef.current);
+        successTimerRef.current = setTimeout(() => setSuccess(false), 3000);
       }
     } catch (err) {
       setError(err.message);

@@ -15,12 +15,16 @@ const CATEGORY_EMOJI = {
   info: 'ℹ️',
 };
 
+// Never log in production — avoids leaking user emails, route paths, and timing data
+const IS_DEV = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
+
 class Logger {
   _timestamp() {
     return new Date().toTimeString().slice(0, 8);
   }
 
   _log(level, category, message, data) {
+    if (!IS_DEV) return;
     const emoji = CATEGORY_EMOJI[category] ?? CATEGORY_EMOJI[level] ?? '•';
     const prefix = `[${this._timestamp()}] ${emoji} ${category}:`;
     const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
@@ -36,25 +40,6 @@ class Logger {
   api(message, data)      { this.info('api',        message, data); }
   network(message, data)  { this.info('network',    message, data); }
   ui(message, data)       { this.info('ui',         message, data); }
-
-  section(title) {
-    console.log(`\n${'─'.repeat(40)}\n  ${title}\n${'─'.repeat(40)}`);
-  }
-
-  async timed(category, name, fn) {
-    this.info(category, `${name}: start`);
-    const t0 = performance.now();
-    try {
-      const result = await fn();
-      const ms = (performance.now() - t0).toFixed(0);
-      this.info(category, `${name}: done (${ms}ms)`);
-      return result;
-    } catch (err) {
-      const ms = (performance.now() - t0).toFixed(0);
-      this.error(category, `${name}: failed (${ms}ms)`, err?.message);
-      throw err;
-    }
-  }
 }
 
 export const logger = new Logger();

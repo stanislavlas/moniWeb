@@ -1,18 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useCategories } from "../hooks/useCategories.js";
-import { useAuth } from "../hooks/useAuth.js";
+import { useCategoriesContext } from "../contexts/CategoriesContext.jsx";
 import { useMonthCache } from "../hooks/useMonthCache.js";
 import { deleteEntry } from "../services/entries.js";
 import { entryEvents } from "../utils/entryEvents.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
-import { MONTHS_SHORT, getAmount, formatCurrency } from "../utils/money.js";
+import { getAmount, formatCurrency, formatYearMonth } from "../utils/money.js";
 
-export function HistoryPage({ showHousehold = false, user: userProp }) {
+export function HistoryPage({ showHousehold = false, user }) {
   const navigate  = useNavigate();
-  const { user: authUser } = useAuth();
-  const user      = userProp ?? authUser;
   const currency  = user?.currency ?? "EUR";
 
   // An entry can be modified by its author OR by the household owner.
@@ -26,10 +23,9 @@ export function HistoryPage({ showHousehold = false, user: userProp }) {
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [deleteError, setDeleteError]  = useState(null);
 
-  const { categories, load: loadCats, colorMap } = useCategories();
+  const { categories, colorMap } = useCategoriesContext();
   const { activeMonths, monthCache, fetchMonth } = useMonthCache(showHousehold);
 
-  useEffect(() => { loadCats(); }, [loadCats]);
   useEffect(() => { fetchMonth(filterMonth); }, [filterMonth, fetchMonth]);
 
   const currentData = monthCache[filterMonth] ?? { entries: [], loading: true, error: null };
@@ -50,15 +46,14 @@ export function HistoryPage({ showHousehold = false, user: userProp }) {
   }, [entries]);
 
   function getCatInfo(entry) {
-    const catId = entry.categoryId ?? entry.category?.categoryId;
+    const catId = entry.categoryId;
     if (!catId) return null;
     const cat = categories.find(c => c.categoryId === catId);
     if (!cat) return null;
     return { icon: cat.icon ?? cat.emoji ?? "", name: cat.name, catId };
   }
 
-  const [year, month] = filterMonth.split("-");
-  const monthLabel = `${MONTHS_SHORT[parseInt(month, 10) - 1]} ${year}`;
+  const monthLabel = formatYearMonth(filterMonth);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-4">
@@ -69,18 +64,16 @@ export function HistoryPage({ showHousehold = false, user: userProp }) {
           onChange={e => setFilterMonth(e.target.value)}
           className="bg-gray-100 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white"
         >
-          {activeMonths.map(ym => {
-            const [y, m] = ym.split("-");
-            return (
+          {activeMonths.map(ym => (
               <option key={ym} value={ym}>
-                {MONTHS_SHORT[parseInt(m, 10) - 1]} {y}
+                {formatYearMonth(ym)}
               </option>
-            );
-          })}
+            ))}
         </select>
       </div>
 
-      <FeedbackBanner message={fetchError || deleteError} type="error" />
+      <FeedbackBanner message={fetchError} type="error" />
+      <FeedbackBanner message={deleteError} type="error" onDismiss={() => setDeleteError(null)} />
 
       {loading && <div className="flex justify-center py-12"><Spinner size={10} /></div>}
 
@@ -96,7 +89,7 @@ export function HistoryPage({ showHousehold = false, user: userProp }) {
           const amountColor  = isIncome ? "text-brand-green" : isInvestment ? "text-brand-blue" : "text-brand-red";
 
           const catInfo = getCatInfo(entry);
-          const catId   = entry.categoryId ?? entry.category?.categoryId;
+          const catId   = entry.categoryId;
           const color   = catId ? colorMap[catId] : null;
 
           return (

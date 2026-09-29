@@ -8,6 +8,7 @@ export function CategoryChips({ categories, selected, onSelect, colorMap = {} })
           <button
             key={cat.categoryId ?? cat.name}
             type="button"
+            aria-pressed={isActive}
             onClick={() => onSelect(cat)}
             className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
               isActive

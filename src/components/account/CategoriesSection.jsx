@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FeedbackBanner } from "../FeedbackBanner.jsx";
 import { Spinner } from "../Spinner.jsx";
-import { useCategories } from "../../hooks/useCategories.js";
+import { useCategoriesContext } from "../../contexts/CategoriesContext.jsx";
 import { INPUT_CLASS, INPUT_SM_CLASS } from "../../utils/styles.js";
 
 const EMOJI_LIST = [
@@ -29,8 +29,8 @@ const TAB_COLORS = {
 export function CategoriesSection() {
   const {
     categories, loading: catsLoading, error: catsError,
-    load: loadCategories, add: addCategory, remove: removeCategory,
-  } = useCategories();
+    add: addCategory, remove: removeCategory,
+  } = useCategoriesContext();
 
   const [tab, setTab]               = useState("expense");
   const [showForm, setShowForm]     = useState(false);
@@ -44,8 +44,10 @@ export function CategoriesSection() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiInput, setEmojiInput]           = useState("");
   const emojiOverlayRef = useRef(null);
+  const catSuccessTimerRef = useRef(null);
 
-  useEffect(() => { loadCategories(); }, [loadCategories]);
+  // Clear the success timer on unmount
+  useEffect(() => () => clearTimeout(catSuccessTimerRef.current), []);
 
   // Close emoji picker on outside click
   useEffect(() => {
@@ -92,7 +94,8 @@ export function CategoriesSection() {
       await addCategory({ name: catName.trim(), icon: catIcon.trim() || undefined, type: tab });
       setCatName(""); setCatIcon(""); setShowForm(false);
       setCatSuccess("Category added.");
-      setTimeout(() => setCatSuccess(null), 3000);
+      clearTimeout(catSuccessTimerRef.current);
+      catSuccessTimerRef.current = setTimeout(() => setCatSuccess(null), 3000);
     } catch (err) {
       setCatAddError(err.message);
     } finally {
