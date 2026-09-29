@@ -7,6 +7,7 @@ self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
 
 self.addEventListener('push', (event) => {
+  console.log('[sw] push event received', event.data?.text());
   let title = 'Budget reminder';
   let body  = "Don't forget to log your expenses!";
 
@@ -35,6 +36,7 @@ self.addEventListener('push', (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window' }).then(clientList => {
+      console.log('[sw] isLocalhost:', isLocalhost, 'open tabs:', clientList.length);
       if (isLocalhost && clientList.length > 0) {
         // localhost workaround: Chrome silently suppresses SW showNotification
         // over HTTP. Post to the first open tab which fires Notification directly.
@@ -42,6 +44,7 @@ self.addEventListener('push', (event) => {
         return;
       }
       // HTTPS (production) or no tab open: use SW showNotification.
+      console.log('[sw] calling showNotification');
       return self.registration.showNotification(title, options);
     })
   );
