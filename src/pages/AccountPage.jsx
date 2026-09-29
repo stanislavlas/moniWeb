@@ -1,20 +1,22 @@
 import { useEffect, useState } from "react";
 import { useHouseholdContext } from "../contexts/HouseholdContext.jsx";
 import { PendingInvitationsCard } from "../components/account/PendingInvitationsCard.jsx";
-import { ProfileSection }   from "../components/account/ProfileSection.jsx";
-import { PasswordSection }  from "../components/account/PasswordSection.jsx";
-import { SettingsSection }  from "../components/account/SettingsSection.jsx";
-import { CategoriesSection } from "../components/account/CategoriesSection.jsx";
-import { HouseholdSection } from "../components/account/HouseholdSection.jsx";
-import { DangerSection }    from "../components/account/DangerSection.jsx";
+import { ProfileSection }       from "../components/account/ProfileSection.jsx";
+import { PasswordSection }      from "../components/account/PasswordSection.jsx";
+import { SettingsSection }      from "../components/account/SettingsSection.jsx";
+import { CategoriesSection }    from "../components/account/CategoriesSection.jsx";
+import { HouseholdSection }     from "../components/account/HouseholdSection.jsx";
+import { NotificationsSection } from "../components/account/NotificationsSection.jsx";
+import { DangerSection }        from "../components/account/DangerSection.jsx";
 
 const SECTIONS = [
-  { id: "profile",    label: "Profile"     },
-  { id: "password",   label: "Password"    },
-  { id: "settings",   label: "Settings"    },
-  { id: "categories", label: "Categories"  },
-  { id: "household",  label: "Household"   },
-  { id: "danger",     label: "Danger Zone" },
+  { id: "profile",       label: "Profile"        },
+  { id: "password",      label: "Password"       },
+  { id: "settings",      label: "Settings"       },
+  { id: "categories",    label: "Categories"     },
+  { id: "household",     label: "Household"      },
+  { id: "notifications", label: "Notifications"  },
+  { id: "danger",        label: "Danger Zone"    },
 ];
 
 export function AccountPage({ user, onChangePassword, onUpdateProfile, onDeleteAccount }) {
@@ -54,12 +56,13 @@ export function AccountPage({ user, onChangePassword, onUpdateProfile, onDeleteA
         ))}
       </div>
 
-      {section === "profile"    && <ProfileSection    user={user} onUpdateProfile={onUpdateProfile} />}
-      {section === "password"   && <PasswordSection   onChangePassword={onChangePassword} />}
-      {section === "settings"   && <SettingsSection   user={user} onUpdateProfile={onUpdateProfile} />}
-      {section === "categories" && <CategoriesSection />}
-      {section === "household"  && <HouseholdSection  user={user} onUpdateProfile={onUpdateProfile} />}
-      {section === "danger"     && <DangerSection     onDeleteAccount={onDeleteAccount} />}
+      {section === "profile"       && <ProfileSection       user={user} onUpdateProfile={onUpdateProfile} />}
+      {section === "password"      && <PasswordSection      onChangePassword={onChangePassword} />}
+      {section === "settings"      && <SettingsSection      user={user} onUpdateProfile={onUpdateProfile} />}
+      {section === "categories"    && <CategoriesSection />}
+      {section === "household"     && <HouseholdSection     user={user} onUpdateProfile={onUpdateProfile} />}
+      {section === "notifications" && <NotificationsSection user={user} onUpdateProfile={onUpdateProfile} />}
+      {section === "danger"        && <DangerSection        onDeleteAccount={onDeleteAccount} />}
     </div>
   );
 }
