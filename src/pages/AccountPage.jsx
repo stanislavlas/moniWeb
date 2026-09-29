@@ -6,7 +6,6 @@ import { PasswordSection }      from "../components/account/PasswordSection.jsx"
 import { SettingsSection }      from "../components/account/SettingsSection.jsx";
 import { CategoriesSection }    from "../components/account/CategoriesSection.jsx";
 import { HouseholdSection }     from "../components/account/HouseholdSection.jsx";
-import { NotificationsSection } from "../components/account/NotificationsSection.jsx";
 import { DangerSection }        from "../components/account/DangerSection.jsx";
 
 const SECTIONS = [
@@ -15,7 +14,6 @@ const SECTIONS = [
   { id: "settings",      label: "Settings"       },
   { id: "categories",    label: "Categories"     },
   { id: "household",     label: "Household"      },
-  { id: "notifications", label: "Notifications"  },
   { id: "danger",        label: "Danger Zone"    },
 ];
 
@@ -61,7 +59,6 @@ export function AccountPage({ user, onChangePassword, onUpdateProfile, onDeleteA
       {section === "settings"      && <SettingsSection      user={user} onUpdateProfile={onUpdateProfile} />}
       {section === "categories"    && <CategoriesSection />}
       {section === "household"     && <HouseholdSection     user={user} onUpdateProfile={onUpdateProfile} />}
-      {section === "notifications" && <NotificationsSection user={user} onUpdateProfile={onUpdateProfile} />}
       {section === "danger"        && <DangerSection        onDeleteAccount={onDeleteAccount} />}
     </div>
   );

@@ -13,7 +13,6 @@ import { YearOverviewPage } from "./pages/YearOverviewPage.jsx";
 import { AddPage } from "./pages/AddPage.jsx";
 import { HistoryPage } from "./pages/HistoryPage.jsx";
 import { AccountPage } from "./pages/AccountPage.jsx";
-import { ensureServiceWorkerRegistered } from "./services/notifications.js";
 
 
 function AppContent() {
@@ -43,26 +42,6 @@ function AppContent() {
   useEffect(() => {
     if (!household) setShowPersonalOnly(false);
   }, [household]);
-
-  // Register SW on startup so it's active and ready to receive pushes —
-  // without creating a new subscription (which would invalidate the stored one).
-  useEffect(() => { ensureServiceWorkerRegistered(); }, []);
-
-  // Fallback: receive SW message and fire Notification directly.
-  // Used on localhost (no HTTPS) where SW showNotification is blocked by Chrome.
-  useEffect(() => {
-    if (!('serviceWorker' in navigator)) return;
-    function handleMessage(event) {
-      if (event.data?.type === 'SHOW_NOTIFICATION') {
-        const { title, body } = event.data;
-        if (Notification.permission === 'granted') {
-          new Notification(title, { body, icon: '/logo.png' });
-        }
-      }
-    }
-    navigator.serviceWorker.addEventListener('message', handleMessage);
-    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
-  }, []);
 
   const pendingCount = pendingInvitations?.length ?? 0;
   const showHousehold = !!household && !showPersonalOnly;
