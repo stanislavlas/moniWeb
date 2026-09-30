@@ -5,7 +5,7 @@ import { entryEvents } from "../utils/entryEvents.js";
 import { recentMonths } from "../utils/money.js";
 import { logger } from "../utils/logger.js";
 
-const INITIAL_MONTH_LIMIT = 12;
+const INITIAL_MONTH_LIMIT = 13;
 const LOAD_MORE_STEP = 6;
 
 /**
