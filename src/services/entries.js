@@ -4,11 +4,16 @@ import { logger } from "../utils/logger.js";
 /**
  * Returns YYYY-MM strings for months that have at least one entry.
  * Cheap endpoint — only date keys, no entry payloads.
+ * @param {boolean} household
+ * @param {number} limit  0 = all months; >0 = only the N most-recent months
  */
-export function listActiveMonths(household = false) {
-  const qs = household ? "?household=true" : "";
-  logger.info('entries', `listActiveMonths (household=${household})`);
-  return authRequest(`/api/entries/months${qs}`);
+export function listActiveMonths(household = false, limit = 0) {
+  const params = new URLSearchParams();
+  if (household) params.set("household", "true");
+  if (limit > 0) params.set("limit", String(limit));
+  const qs = params.toString();
+  logger.info('entries', `listActiveMonths (household=${household}, limit=${limit})`);
+  return authRequest(`/api/entries/months${qs ? "?" + qs : ""}`);
 }
 
 export function listActiveYears(household = false) {

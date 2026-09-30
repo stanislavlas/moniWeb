@@ -24,6 +24,36 @@ body {
   display: none;
 }
 
+/* Thin scrollbar — hidden by default, appears on hover */
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s;
+}
+.thin-scrollbar:hover {
+  scrollbar-color: rgba(156, 163, 175, 0.6) transparent;
+}
+.dark .thin-scrollbar:hover {
+  scrollbar-color: rgba(115, 115, 115, 0.6) transparent;
+}
+.thin-scrollbar::-webkit-scrollbar {
+  height: 3px;
+}
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+  transition: background 0.2s;
+}
+.thin-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.6);
+}
+.dark .thin-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(115, 115, 115, 0.6);
+}
+
 /* Fix browser autofill overriding dark mode input colors */
 .dark input:-webkit-autofill,
 .dark input:-webkit-autofill:hover,

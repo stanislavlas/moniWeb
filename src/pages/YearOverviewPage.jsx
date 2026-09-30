@@ -149,7 +149,7 @@ export function YearOverviewPage({ user, showHousehold = false }) {
       </div>
 
       {/* Year scroller */}
-      <div className="overflow-x-auto no-scrollbar pb-1">
+      <div className="overflow-x-auto thin-scrollbar pb-1">
         <div className="flex gap-2 w-max px-1">
           {activeYears.map(y => (
             <button

@@ -5,6 +5,8 @@ import { entryEvents } from "../utils/entryEvents.js";
 import { recentMonths } from "../utils/money.js";
 import { logger } from "../utils/logger.js";
 
+const INITIAL_MONTH_LIMIT = 12;
+
 /**
  * Per-month dashboard cache backed by the GET /api/dashboard endpoint.
  *
@@ -17,15 +19,18 @@ import { logger } from "../utils/logger.js";
  *   - activeMonths          — sorted YYYY-MM[] for the month scroller
  *   - dashboardCache        — { [YYYY-MM]: { data, loading, error } }
  *   - fetchDashboard(ym)    — fetch a single month on demand (idempotent)
+ *   - hasMoreMonths         — true when the initial 12-month limit was hit
+ *   - loadAllMonths()       — fetch the full month list (Show More)
  *
  * Automatically:
- *   - Fetches active months list on mount / household toggle
+ *   - Fetches active months list on mount / household toggle (limited to 12)
  *   - Invalidates a month when entryEvents fires for a date in that month
  *   - Resets all state when showHousehold toggles
  */
 export function useDashboard(showHousehold) {
   const [activeMonths, setActiveMonths] = useState(() => recentMonths(3));
   const [dashboardCache, setDashboardCache] = useState({});
+  const [hasMoreMonths, setHasMoreMonths] = useState(false);
   const fetchedMonths = useRef(new Set());
 
   // Fetch the list of months that have data; merge with recent window.
@@ -36,9 +41,10 @@ export function useDashboard(showHousehold) {
     setDashboardCache({});
     fetchedMonths.current = new Set();
     setActiveMonths(recentMonths(3));
+    setHasMoreMonths(false);
 
     let cancelled = false;
-    listActiveMonths(showHousehold)
+    listActiveMonths(showHousehold, INITIAL_MONTH_LIMIT)
       .then(data => {
         if (cancelled) return;
         const recent = new Set(recentMonths(3));
@@ -46,11 +52,28 @@ export function useDashboard(showHousehold) {
         const sorted = [...all].sort((a, b) => b.localeCompare(a));
         logger.info("dashboard", `activeMonths loaded: ${sorted.length} months (household=${showHousehold})`);
         setActiveMonths(sorted);
+        // If we got exactly the limit back the API may have more; flag it
+        setHasMoreMonths(Array.isArray(data) && data.length >= INITIAL_MONTH_LIMIT);
       })
       .catch(e => {
         logger.warn("dashboard", "Failed to load activeMonths — keeping seed", e?.message);
       });
     return () => { cancelled = true; };
+  }, [showHousehold]);
+
+  // Fetch ALL months (called when the user taps "Show more")
+  const loadAllMonths = useCallback(() => {
+    listActiveMonths(showHousehold, 0)
+      .then(data => {
+        if (!Array.isArray(data)) return;
+        setActiveMonths(prev => {
+          const all = new Set([...data, ...prev]);
+          return [...all].sort((a, b) => b.localeCompare(a));
+        });
+        setHasMoreMonths(false);
+        logger.info("dashboard", `loadAllMonths: ${data.length} months total`);
+      })
+      .catch(e => logger.warn("dashboard", "loadAllMonths failed", e?.message));
   }, [showHousehold]);
 
   // Fetch dashboard data for a single month on demand — idempotent
@@ -97,5 +120,6 @@ export function useDashboard(showHousehold) {
     });
   }, [fetchDashboard]);
 
-  return { activeMonths, dashboardCache, fetchDashboard };
+  return { activeMonths, dashboardCache, fetchDashboard, hasMoreMonths, loadAllMonths };
 }
+

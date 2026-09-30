@@ -11,7 +11,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
   // Use UTC month to stay consistent with recentMonths() in money.js (which uses getUTCMonth)
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const { categories, colorMap } = useCategoriesContext();
-  const { activeMonths, dashboardCache, fetchDashboard } = useDashboard(showHousehold);
+  const { activeMonths, dashboardCache, fetchDashboard, hasMoreMonths, loadAllMonths } = useDashboard(showHousehold);
 
   useEffect(() => { fetchDashboard(filterMonth); }, [filterMonth, fetchDashboard]);
 
@@ -63,7 +63,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
       </div>
 
       {/* Month scroller */}
-      <div className="overflow-x-auto no-scrollbar pb-1">
+      <div className="overflow-x-auto thin-scrollbar pb-1">
         <div className="flex gap-2 w-max px-1">
           {activeMonths.map(m => {
             const [y, mo] = m.split("-");
@@ -83,6 +83,14 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
               </button>
             );
           })}
+          {hasMoreMonths && (
+            <button
+              onClick={loadAllMonths}
+              className="flex flex-col items-center justify-center px-4 py-2.5 rounded-xl border border-dashed border-gray-300 dark:border-neutral-600 text-gray-400 dark:text-neutral-500 text-xs font-medium whitespace-nowrap transition-colors hover:border-gray-400 dark:hover:border-neutral-400 hover:text-gray-500 dark:hover:text-neutral-300"
+            >
+              Show more
+            </button>
+          )}
         </div>
       </div>
 
