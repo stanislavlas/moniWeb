@@ -5,7 +5,7 @@ import { recentMonths } from "../utils/money.js";
 import { logger } from "../utils/logger.js";
 
 const INITIAL_MONTH_LIMIT = 12;
-const LOAD_MORE_STEP      = 12;
+const LOAD_MORE_STEP      = 6;
 
 /**
  * Shared hook that manages a per-month entry cache for HistoryPage.
