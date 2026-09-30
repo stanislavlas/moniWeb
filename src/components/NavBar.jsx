@@ -8,7 +8,7 @@ const TABS = [
   { to: "/account", label: "Account", emoji: "👤" },
 ];
 
-export function NavBar({ onLogout, theme, onToggleTheme, pendingCount = 0, household, showPersonalOnly, onToggleView }) {
+export function NavBar({ onLogout, theme, onToggleTheme, pendingCount = 0, showToggle = false, showPersonalOnly, onToggleView }) {
   return (
     <>
       {/* ── Desktop top bar (hidden on mobile) ── */}
@@ -76,7 +76,7 @@ export function NavBar({ onLogout, theme, onToggleTheme, pendingCount = 0, house
 
           {/* Right: household/personal toggle + theme toggle + logout */}
           <div className="ml-auto flex items-center gap-1 shrink-0">
-            {household && (
+            {showToggle && (
               <button
                 onClick={onToggleView}
                 aria-label={showPersonalOnly ? "Show household view" : "Show personal view"}
@@ -114,7 +114,7 @@ export function NavBar({ onLogout, theme, onToggleTheme, pendingCount = 0, house
             <span className="font-bold text-brand-green text-lg">Moni</span>
           </Link>
           <div className="flex items-center gap-1">
-            {household && (
+            {showToggle && (
               <button
                 onClick={onToggleView}
                 aria-label={showPersonalOnly ? "Show household view" : "Show personal view"}

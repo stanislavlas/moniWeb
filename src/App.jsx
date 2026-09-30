@@ -85,7 +85,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-950 text-gray-900 dark:text-white">
-      <NavBar onLogout={logout} theme={theme} onToggleTheme={toggleTheme} pendingCount={pendingCount} household={householdLoaded ? household : null} showPersonalOnly={showPersonalOnly} onToggleView={() => setShowPersonalOnly(v => !v)} />
+      <NavBar onLogout={logout} theme={theme} onToggleTheme={toggleTheme} pendingCount={pendingCount} showToggle={!!user?.householdId} showPersonalOnly={showPersonalOnly} onToggleView={() => setShowPersonalOnly(v => !v)} />
       <Routes>
         <Route path="/" element={<Navigate to="/month" replace />} />
         <Route
