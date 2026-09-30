@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FeedbackBanner } from "../FeedbackBanner.jsx";
 import { Spinner } from "../Spinner.jsx";
 import { useHouseholdContext } from "../../contexts/HouseholdContext.jsx";
 import { useAsyncAction } from "../../hooks/useAsyncAction.js";
-import { PendingInvitationsCard } from "./PendingInvitationsCard.jsx";
 import { HouseholdMemberList } from "./HouseholdMemberList.jsx";
 import { CreateHouseholdForm } from "./CreateHouseholdForm.jsx";
 import { INPUT_SM_CLASS } from "../../utils/styles.js";
@@ -26,13 +25,19 @@ export function HouseholdSection({ user, onUpdateProfile }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [renameValue, setRenameValue] = useState("");
   const [actionSuccess, setActionSuccess] = useState(null);
+  const successTimerRef = useRef(null);
+
+  // Clear the success timer on unmount to avoid state updates on an unmounted component
+  useEffect(() => () => clearTimeout(successTimerRef.current), []);
 
   function showSuccess(msg) {
     setActionSuccess(msg);
-    setTimeout(() => setActionSuccess(null), 3000);
+    clearTimeout(successTimerRef.current);
+    successTimerRef.current = setTimeout(() => setActionSuccess(null), 3000);
   }
 
   const isOwner = household && user && household.ownerId === user.userId;
+  const pendingSentInvitations = sentInvitations.filter(i => i.status === "PENDING");
 
   useEffect(() => { if (isOwner) loadSentInvitations(); }, [isOwner, loadSentInvitations]);
   useEffect(() => { if (household?.name) setRenameValue(household.name); }, [household?.name]);
@@ -43,7 +48,10 @@ export function HouseholdSection({ user, onUpdateProfile }) {
       const data = await run(() => create(householdName));
       setHouseholdName("");
       showSuccess("Household created.");
-      if (onUpdateProfile) await onUpdateProfile({ householdId: data.householdId });
+      // Non-fatal: profile update failure doesn't undo the household creation
+      if (onUpdateProfile && data?.householdId) {
+        await onUpdateProfile({ householdId: data.householdId }).catch(() => {});
+      }
     } catch {}
   }
 
@@ -72,14 +80,11 @@ export function HouseholdSection({ user, onUpdateProfile }) {
   }
 
   async function handleLeave() {
-    if (isOwner) {
-      alert("As the owner, you cannot leave. Delete the household instead.");
-      return;
-    }
     if (!window.confirm("Leave this household? You will lose access to shared data.")) return;
     try {
       await run(() => leave());
-      if (onUpdateProfile) await onUpdateProfile({ householdId: null });
+      setView("main");
+      if (onUpdateProfile) await onUpdateProfile({ householdId: null }).catch(() => {});
     } catch {}
   }
 
@@ -87,7 +92,8 @@ export function HouseholdSection({ user, onUpdateProfile }) {
     if (!window.confirm("Delete this household permanently? All shared data will be lost.")) return;
     try {
       await run(() => deleteHousehold());
-      if (onUpdateProfile) await onUpdateProfile({ householdId: null });
+      setView("main");
+      if (onUpdateProfile) await onUpdateProfile({ householdId: null }).catch(() => {});
     } catch {}
   }
 
@@ -101,6 +107,16 @@ export function HouseholdSection({ user, onUpdateProfile }) {
         <div className="flex justify-center py-16"><Spinner size={12} /></div>
       )}
 
+      {/* Show retry for both initial load failures (householdLoaded=false) and post-load errors */}
+      {householdError && !household && (
+        <div className="text-center py-8 space-y-3">
+          <p className="text-gray-400 text-sm">Could not load household data.</p>
+          <button onClick={() => reloadHousehold()} className="px-4 py-2 rounded-xl bg-brand-green text-white text-sm font-semibold">
+            Retry
+          </button>
+        </div>
+      )}
+
       {householdLoaded && !household && !householdError && (
         <CreateHouseholdForm
           householdName={householdName}
@@ -109,15 +125,6 @@ export function HouseholdSection({ user, onUpdateProfile }) {
           loading={actionLoading}
           hasPendingInvitations={pendingInvitations.length > 0}
         />
-      )}
-
-      {householdLoaded && !household && householdError && (
-        <div className="text-center py-8 space-y-3">
-          <p className="text-gray-400 text-sm">Could not load household data.</p>
-          <button onClick={() => reloadHousehold()} className="px-4 py-2 rounded-xl bg-brand-green text-white text-sm font-semibold">
-            Retry
-          </button>
-        </div>
       )}
 
       {household && (
@@ -206,10 +213,10 @@ export function HouseholdSection({ user, onUpdateProfile }) {
           )}
 
           {/* Sent invitations (pending only) */}
-          {isOwner && sentInvitations.filter(i => i.status === "PENDING").length > 0 && (
+          {isOwner && pendingSentInvitations.length > 0 && (
             <div className="space-y-2">
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sent invitations (Pending)</h2>
-              {sentInvitations.filter(i => i.status === "PENDING").map(inv => (
+              {pendingSentInvitations.map(inv => (
                 <div key={inv.invitationId}
                   className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 px-4 py-3 flex items-center justify-between gap-3">
                   <div>
@@ -217,10 +224,14 @@ export function HouseholdSection({ user, onUpdateProfile }) {
                     <p className="text-xs text-gray-400">Waiting for response</p>
                   </div>
                   <button
-                    onClick={() => run(async () => {
-                      await cancelInvitation(inv.invitationId);
-                      showSuccess("Invitation cancelled.");
-                    })}
+                    onClick={async () => {
+                      try {
+                        await run(async () => {
+                          await cancelInvitation(inv.invitationId);
+                          showSuccess("Invitation cancelled.");
+                        });
+                      } catch {}
+                    }}
                     disabled={actionLoading}
                     className="text-xs text-brand-red hover:underline disabled:opacity-50"
                   >

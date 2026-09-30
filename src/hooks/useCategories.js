@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { listCategories, createCategory, updateCategory, deleteCategory } from "../services/categories.js";
 import { logger } from "../utils/logger.js";
 
@@ -30,8 +30,11 @@ export function useCategories() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState(null);
+  const loadingRef                  = useRef(false); // ref-based guard — stable, no dep-loop
 
   const load = useCallback(async () => {
+    if (loadingRef.current) return; // prevent parallel fetches (e.g. React StrictMode double-invoke)
+    loadingRef.current = true;
     setLoading(true); setError(null);
     try {
       const data = await listCategories();
@@ -43,8 +46,9 @@ export function useCategories() {
       setError(e.message);
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
-  }, []);
+  }, []); // stable reference — no infinite re-fetch loop
 
   const add = useCallback(async (category) => {
     const created = await createCategory(category);
@@ -70,5 +74,11 @@ export function useCategories() {
     Object.fromEntries(categories.map(c => [c.categoryId, c.color])),
   [categories]);
 
-  return { categories, loading, error, load, add, update, remove, colorMap };
+  return { categories, loading, error, load, add, update, remove, colorMap,
+           clearError: useCallback(() => setError(null), []),
+           reset: useCallback(() => {
+             setCategories([]);
+             setError(null);
+             loadingRef.current = false; // allow load() after next login
+           }, []) };
 }

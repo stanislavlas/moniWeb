@@ -1,70 +1,57 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useCategoriesContext } from "../contexts/CategoriesContext.jsx";
-import { useMonthCache } from "../hooks/useMonthCache.js";
+import { useDashboard } from "../hooks/useDashboard.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 import { NecessityBreakdown } from "../components/NecessityBreakdown.jsx";
 import { SummaryPills } from "../components/SummaryPills.jsx";
-import { MONTHS_SHORT, getAmount, formatCurrency, formatYearMonth, sumEntriesByType, sumNecessity } from "../utils/money.js";
+import { MONTHS_SHORT, formatCurrency, formatYearMonth } from "../utils/money.js";
 
 export function MonthOverviewPage({ user, showHousehold = false }) {
+  // Use UTC month to stay consistent with recentMonths() in money.js (which uses getUTCMonth)
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const { categories, colorMap } = useCategoriesContext();
-  const { activeMonths, monthCache, fetchMonth } = useMonthCache(showHousehold);
+  const { activeMonths, dashboardCache, fetchDashboard } = useDashboard(showHousehold);
 
-  useEffect(() => { fetchMonth(filterMonth); }, [filterMonth, fetchMonth]);
+  useEffect(() => { fetchDashboard(filterMonth); }, [filterMonth, fetchDashboard]);
 
-  const currentData = monthCache[filterMonth] ?? { entries: [], loading: true, error: null };
-  const entries     = currentData.entries;
-  const loading     = currentData.loading;
-  const error       = currentData.error;
+  const currentData = dashboardCache[filterMonth] ?? { data: null, loading: true, error: null };
+  const dash    = currentData.data;
+  const loading = currentData.loading;
+  const error   = currentData.error;
 
   const monthLabel = formatYearMonth(filterMonth);
+  const currency   = user?.currency ?? "EUR";
+  const fmt        = (v) => formatCurrency(v, currency);
 
-  const currency = user?.currency ?? "EUR";
-  const fmt = (v) => formatCurrency(v, currency);
+  // Pre-computed totals from the API — no client-side summation needed
+  const income     = parseFloat(dash?.totalIncome?.value     ?? 0);
+  const expense    = parseFloat(dash?.totalExpenses?.value   ?? 0);
+  const investment = parseFloat(dash?.totalInvestments?.value ?? 0);
+  const balance    = parseFloat(dash?.savedAmount?.value     ?? 0);
+  const necessary  = parseFloat(dash?.necessaryVsOptional?.necessary?.value ?? 0);
+  const optional   = parseFloat(dash?.necessaryVsOptional?.optional?.value  ?? 0);
 
-  const totals = useMemo(() => {
-    const { income, expense, investment } = sumEntriesByType(entries);
-    return { income, expense, investment, balance: income - expense - investment };
-  }, [entries]);
+  // Category breakdown from API — map categoryId → { value } to display list
+  const catBreakdown = dash?.expensesByCategory
+    ? Object.entries(dash.expensesByCategory)
+        .map(([catId, amount]) => {
+          const total = parseFloat(amount.value ?? 0);
+          const cat   = categories.find(c => c.categoryId === catId);
+          const icon  = cat?.icon ?? cat?.emoji ?? "";
+          const name  = cat?.name ?? "Unknown";
+          return { catId, label: icon ? `${icon} ${name}` : name, total };
+        })
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10)
+    : [];
 
-  const necessityTotals = useMemo(() => sumNecessity(entries), [entries]);
+  // memberBreakdown is pre-computed by the API in household mode; null in personal mode
+  const memberBreakdown = dash?.memberBreakdown ?? [];
 
-  const catBreakdown = useMemo(() => {
-    const map = {};
-    entries.filter(e => e.type === "EXPENSE").forEach(e => {
-      const id = e.categoryId;
-      if (!id) return;
-      map[id] = (map[id] || 0) + getAmount(e);
-    });
-    return Object.entries(map)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([catId, total]) => {
-        const cat = categories.find(c => c.categoryId === catId);
-        const icon = cat?.icon ?? cat?.emoji ?? "";
-        const name = cat?.name ?? catId.slice(0, 8);
-        return { catId, label: icon ? `${icon} ${name}` : name, total };
-      });
-  }, [entries, categories]);
-
-  const memberBreakdown = useMemo(() => {
-    if (!showHousehold) return [];
-    const map = {};
-    entries.forEach(e => {
-      if (!e.authorName) return;
-      if (e.type !== "INCOME" && e.type !== "EXPENSE" && e.type !== "INVESTMENT") return;
-      if (!map[e.authorName]) map[e.authorName] = { income: 0, expense: 0, invested: 0 };
-      if (e.type === "INCOME")     map[e.authorName].income   += getAmount(e);
-      if (e.type === "EXPENSE")    map[e.authorName].expense  += getAmount(e);
-      if (e.type === "INVESTMENT") map[e.authorName].invested += getAmount(e);
-    });
-    return Object.entries(map);
-  }, [entries, showHousehold]);
-
-  const catMax = catBreakdown[0]?.total || 1;
-  const summaryMax = Math.max(totals.income, totals.expense, totals.investment, 1);
+  const catMax    = catBreakdown[0]?.total || 1;
+  const summaryMax = Math.max(income, expense, investment, 1);
+  const hasEntries = income > 0 || expense > 0 || investment > 0;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-6">
@@ -75,7 +62,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
         <h1 className="text-xl font-bold">{monthLabel}</h1>
       </div>
 
-      {/* Month scroller — no scrollbar */}
+      {/* Month scroller */}
       <div className="overflow-x-auto no-scrollbar pb-1">
         <div className="flex gap-2 w-max px-1">
           {activeMonths.map(m => {
@@ -103,27 +90,28 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
 
       {loading && <div className="flex justify-center py-12"><Spinner size={10} /></div>}
 
-      {!loading && (
+      {/* Only render content when not loading AND either data exists or there is no error */}
+      {!loading && (!error || dash) && (
         <>
           {/* Balance */}
           <div className="text-center py-4">
             <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Balance</p>
-            <p className={`text-4xl sm:text-5xl font-bold font-mono ${totals.balance >= 0 ? "text-brand-green" : "text-brand-red"}`}>
-              {fmt(totals.balance)}
+            <p className={`text-4xl sm:text-5xl font-bold font-mono ${balance >= 0 ? "text-brand-green" : "text-brand-red"}`}>
+              {fmt(balance)}
             </p>
           </div>
 
           {/* Pills — Income / Expenses / Invested */}
-          <SummaryPills income={totals.income} expense={totals.expense} investment={totals.investment} currency={currency} />
+          <SummaryPills income={income} expense={expense} investment={investment} currency={currency} />
 
           {/* Summary bars */}
           <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Summary</h2>
             {[
-              { label: "💰 Income",   val: totals.income,     color: "#1D9E75" },
-              { label: "💳 Expenses", val: totals.expense,    color: "#D85A30" },
-              ...(totals.investment > 0
-                ? [{ label: "📈 Invested", val: totals.investment, color: "#378ADD" }]
+              { label: "💰 Income",   val: income,     color: "#1D9E75" },
+              { label: "💳 Expenses", val: expense,    color: "#D85A30" },
+              ...(investment > 0
+                ? [{ label: "📈 Invested", val: investment, color: "#378ADD" }]
                 : []),
             ].map(({ label, val, color }) => (
               <div key={label}>
@@ -142,10 +130,10 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
           </div>
 
           {/* Expense breakdown — Needs vs Wants */}
-          {totals.expense > 0 && (
+          {expense > 0 && (
             <div className="space-y-2">
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Expense breakdown</h2>
-              <NecessityBreakdown necessary={necessityTotals.necessary} optional={necessityTotals.optional} total={totals.expense} currency={currency} />
+              <NecessityBreakdown necessary={necessary} optional={optional} total={expense} currency={currency} />
             </div>
           )}
 
@@ -153,16 +141,16 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
           {memberBreakdown.length > 0 && (
             <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">By member</h2>
-              {memberBreakdown.map(([name, t]) => (
-                <div key={name} className="flex items-center gap-3 py-1">
+              {memberBreakdown.map(m => (
+                <div key={m.userId} className="flex items-center gap-3 py-1">
                   <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center shrink-0">
-                    <span className="text-xs font-bold text-green-700 dark:text-green-400">{name.charAt(0).toUpperCase()}</span>
+                    <span className="text-xs font-bold text-green-700 dark:text-green-400">{(m.name ?? "?").charAt(0).toUpperCase()}</span>
                   </div>
-                  <span className="text-sm text-gray-700 dark:text-gray-200 flex-1">{name}</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-200 flex-1">{m.name}</span>
                   <div className="flex flex-col items-end">
-                    {t.income   > 0 && <span className="text-xs font-mono text-brand-green">+{fmt(t.income)}</span>}
-                    {t.expense  > 0 && <span className="text-xs font-mono text-brand-red">−{fmt(t.expense)}</span>}
-                    {t.invested > 0 && <span className="text-xs font-mono text-brand-blue">↗{fmt(t.invested)}</span>}
+                    {parseFloat(m.totalIncome?.value      ?? 0) > 0 && <span className="text-xs font-mono text-brand-green">+{fmt(parseFloat(m.totalIncome?.value ?? 0))}</span>}
+                    {parseFloat(m.totalExpenses?.value    ?? 0) > 0 && <span className="text-xs font-mono text-brand-red">−{fmt(parseFloat(m.totalExpenses?.value ?? 0))}</span>}
+                    {parseFloat(m.totalInvestments?.value ?? 0) > 0 && <span className="text-xs font-mono text-brand-blue">↗{fmt(parseFloat(m.totalInvestments?.value ?? 0))}</span>}
                   </div>
                 </div>
               ))}
@@ -193,7 +181,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
             </div>
           )}
 
-          {entries.length === 0 && (
+          {!hasEntries && (
             <p className="text-center text-gray-400 py-8">No transactions this month.</p>
           )}
         </>

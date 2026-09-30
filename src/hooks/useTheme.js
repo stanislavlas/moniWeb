@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 function getInitialTheme() {
   try {
@@ -21,9 +21,9 @@ export function useTheme() {
     try { localStorage.setItem("theme", theme); } catch (_) { /* ignore */ }
   }, [theme]);
 
-  function toggle() {
+  const toggle = useCallback(() => {
     setTheme(t => (t === "dark" ? "light" : "dark"));
-  }
+  }, []);
 
   return { theme, toggle };
 }

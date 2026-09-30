@@ -10,6 +10,7 @@ export function DangerSection({ onDeleteAccount }) {
 
   async function handleDelete(e) {
     e.preventDefault();
+    if (!deletePw.trim()) { setError("Please enter your password to confirm."); return; }
     if (!window.confirm("This will permanently delete your account and all data. Continue?")) return;
     setLoading(true); setError(null);
     try { await onDeleteAccount(deletePw); }

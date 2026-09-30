@@ -22,8 +22,15 @@ export function useMonthCache(showHousehold) {
   const [monthCache, setMonthCache]     = useState({});
   const fetchedMonths                   = useRef(new Set());
 
-  // Fetch the list of months that have data; merge with recent window
+  // Fetch the list of months that have data; merge with recent window.
+  // Reset the cache first so the reset and fetch are atomic within one effect,
+  // eliminating the race where a stale API response could overwrite the reset seed.
   useEffect(() => {
+    logger.info('cache', `household toggle changed (${showHousehold}) — resetting cache`);
+    setMonthCache({});
+    fetchedMonths.current = new Set();
+    setActiveMonths(recentMonths(3));
+
     let cancelled = false;
     listActiveMonths(showHousehold)
       .then(data => {
@@ -56,14 +63,6 @@ export function useMonthCache(showHousehold) {
       fetchedMonths.current.delete(ym); // allow retry on error
       setMonthCache(prev => ({ ...prev, [ym]: { entries: [], loading: false, error: err.message } }));
     }
-  }, [showHousehold]);
-
-  // Reset everything when household toggle changes
-  useEffect(() => {
-    logger.info('cache', `household toggle changed (${showHousehold}) — resetting cache`);
-    setMonthCache({});
-    fetchedMonths.current = new Set();
-    setActiveMonths(recentMonths(3));
   }, [showHousehold]);
 
   // Invalidate a month when an entry in that month is mutated, then immediately re-fetch

@@ -12,16 +12,16 @@ export function HistoryPage({ showHousehold = false, user }) {
   const navigate  = useNavigate();
   const currency  = user?.currency ?? "EUR";
 
-  // An entry can be modified by its author OR by the household owner.
-  const canModify = (entry) => {
-    if (!user) return false;
-    if (entry.userId === user.userId) return true;
-    if (showHousehold && user.householdRole === "OWNER") return true;
-    return false;
-  };
+  // Only the entry author can edit or delete their own entries.
+  const canModify = (entry) => !!(user && entry.userId === user.userId);
 
+  // Use UTC month to stay consistent with recentMonths() in money.js (which uses getUTCMonth)
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [deleteError, setDeleteError]  = useState(null);
+  const [fetchErrorHidden, setFetchErrorHidden] = useState(false);
+
+  // Reset dismiss state when the month changes (new fetch, new potential error)
+  useEffect(() => { setFetchErrorHidden(false); }, [filterMonth]);
 
   const { categories, colorMap } = useCategoriesContext();
   const { activeMonths, monthCache, fetchMonth } = useMonthCache(showHousehold);
@@ -64,15 +64,19 @@ export function HistoryPage({ showHousehold = false, user }) {
           onChange={e => setFilterMonth(e.target.value)}
           className="bg-gray-100 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white"
         >
+          {/* Ensure the selected month is always present even if API hasn't returned it yet */}
+          {!activeMonths.includes(filterMonth) && (
+            <option key={filterMonth} value={filterMonth}>{formatYearMonth(filterMonth)}</option>
+          )}
           {activeMonths.map(ym => (
-              <option key={ym} value={ym}>
-                {formatYearMonth(ym)}
-              </option>
-            ))}
+            <option key={ym} value={ym}>
+              {formatYearMonth(ym)}
+            </option>
+          ))}
         </select>
       </div>
 
-      <FeedbackBanner message={fetchError} type="error" />
+      <FeedbackBanner message={fetchErrorHidden ? null : fetchError} type="error" onDismiss={() => setFetchErrorHidden(true)} />
       <FeedbackBanner message={deleteError} type="error" onDismiss={() => setDeleteError(null)} />
 
       {loading && <div className="flex justify-center py-12"><Spinner size={10} /></div>}
@@ -85,7 +89,7 @@ export function HistoryPage({ showHousehold = false, user }) {
         {entries.map(entry => {
           const isIncome     = entry.type === "INCOME";
           const isInvestment = entry.type === "INVESTMENT";
-          const sign         = isIncome ? "+" : "−";
+          const sign         = isIncome ? "+" : isInvestment ? "↗" : "−";
           const amountColor  = isIncome ? "text-brand-green" : isInvestment ? "text-brand-blue" : "text-brand-red";
 
           const catInfo = getCatInfo(entry);
@@ -124,7 +128,14 @@ export function HistoryPage({ showHousehold = false, user }) {
                   )}
                 </div>
                 {entry.note && <p className="text-sm text-gray-500 truncate">{entry.note}</p>}
-                <p className="text-xs text-gray-400">{entry.date}</p>
+                <p className="text-xs text-gray-400">
+                  {entry.date}
+                  {entry.authorName && (
+                    <span className={entry.userId !== user?.userId ? "font-medium text-gray-500 dark:text-gray-400" : ""}>
+                      {" · "}{entry.authorName}
+                    </span>
+                  )}
+                </p>
               </div>
 
               <div className="flex flex-col gap-1.5 shrink-0 items-end">

@@ -47,9 +47,9 @@ export function PendingInvitationsCard({ invitations, onAccept, onReject }) {
               <button
                 onClick={() => handle(inv.invitationId, () => onReject(inv.invitationId))}
                 disabled={isProcessing}
-                className="px-3 py-1.5 bg-gray-100 dark:bg-neutral-800 rounded-xl text-xs text-gray-500 disabled:opacity-50"
+                className="px-3 py-1.5 bg-gray-100 dark:bg-neutral-800 rounded-xl text-xs text-gray-500 disabled:opacity-50 flex items-center justify-center min-w-[60px]"
               >
-                Reject
+                {isProcessing ? <Spinner size={3} /> : "Reject"}
               </button>
             </div>
           </div>

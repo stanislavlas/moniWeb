@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+import { API_BASE } from "./auth.js";
 
 export async function listCurrencies() {
   const res = await fetch(`${API_BASE}/api/currencies`);

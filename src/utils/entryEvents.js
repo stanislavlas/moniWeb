@@ -14,11 +14,18 @@
  *   }, []);
  */
 const listeners = new Set();
+const IS_DEV = import.meta.env?.DEV ?? false;
 
 export const entryEvents = {
   /** Notify all listeners that an entry on [date] was mutated. */
   emit(date) {
-    listeners.forEach(fn => { try { fn(date); } catch {} });
+    listeners.forEach(fn => {
+      try {
+        fn(date);
+      } catch (e) {
+        if (IS_DEV) console.error('[entryEvents] subscriber error:', e);
+      }
+    });
   },
   /** Subscribe to mutation events. Returns an unsubscribe function. */
   subscribe(fn) {

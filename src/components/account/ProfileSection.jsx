@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FeedbackBanner } from "../FeedbackBanner.jsx";
 import { PasswordInput } from "../PasswordInput.jsx";
 import { Spinner } from "../Spinner.jsx";
@@ -11,6 +11,12 @@ export function ProfileSection({ user, onUpdateProfile }) {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
   const [success, setSuccess]   = useState(null);
+
+  // Sync form fields if the user object is updated externally (e.g., background refresh)
+  useEffect(() => {
+    setName(user?.name  ?? "");
+    setEmail(user?.email ?? "");
+  }, [user?.name, user?.email]);
 
   async function handleSubmit(e) {
     e.preventDefault();

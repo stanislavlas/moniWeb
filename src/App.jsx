@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "./hooks/useAuth.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { HouseholdProvider, useHouseholdContext } from "./contexts/HouseholdContext.jsx";
-import { CategoriesProvider } from "./contexts/CategoriesContext.jsx";
+import { CategoriesProvider, useCategoriesContext } from "./contexts/CategoriesContext.jsx";
 import { NavBar } from "./components/NavBar.jsx";
 import { PrivateRoute } from "./components/PrivateRoute.jsx";
 import { Spinner } from "./components/Spinner.jsx";
@@ -24,20 +24,30 @@ function AppContent() {
     pendingRegistration, verifyRegistration,
     resendRegistrationCode, cancelRegistrationVerification,
     deleteAccount, changePassword, updateProfile,
+    forgotPassword, resetPassword,
   } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
 
   const {
-    household, pendingInvitations, loaded: householdLoaded, load: loadHousehold,
+    household, pendingInvitations, loaded: householdLoaded, load: loadHousehold, reset: resetHousehold,
   } = useHouseholdContext();
+
+  const { load: loadCategories, reset: resetCategories } = useCategoriesContext();
 
   const [showPersonalOnly, setShowPersonalOnly] = useState(false);
 
-  // Seed household stub from user object immediately (no network needed for toggle visibility).
-  // Full household data (members etc.) is loaded below once authenticated.
+  // Load household and categories only after authentication is confirmed
   useEffect(() => {
-    if (isAuthenticated) { loadHousehold(); }
-  }, [isAuthenticated, loadHousehold]);
+    if (isAuthenticated) {
+      loadHousehold();
+      loadCategories();
+    } else {
+      // Reset household and categories state so a subsequent login never sees
+      // a previous user's data
+      resetHousehold();
+      resetCategories();
+    }
+  }, [isAuthenticated, loadHousehold, loadCategories, resetHousehold, resetCategories]);
 
   // Reset personal-only toggle when leaving a household
   useEffect(() => {
@@ -67,6 +77,8 @@ function AppContent() {
         onVerifyRegistration={verifyRegistration}
         onResendCode={resendRegistrationCode}
         onCancelRegistration={cancelRegistrationVerification}
+        onForgotPassword={forgotPassword}
+        onResetPassword={resetPassword}
       />
     );
   }

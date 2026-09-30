@@ -12,6 +12,8 @@ import {
   deleteAccount as apiDelete,
   changePassword as apiChangePassword,
   updateProfile as apiUpdateProfile,
+  forgotPassword as apiForgotPassword,
+  resetPassword as apiResetPassword,
 } from "../services/auth.js";
 
 export function useAuth() {
@@ -39,6 +41,7 @@ export function useAuth() {
     function handleExpired() {
       logger.warn('auth', 'Session expired — auto logout');
       setUser(null);
+      setPending(null); // clear stale pending registration so OTP screen doesn't reappear
     }
     window.addEventListener("auth:expired", handleExpired);
     return () => window.removeEventListener("auth:expired", handleExpired);
@@ -76,6 +79,7 @@ export function useAuth() {
     logger.auth('Logout initiated');
     await apiLogout();
     setUser(null);
+    setPending(null); // clear stale pending registration
   }, []);
 
   const deleteAccount = useCallback(async (password) => {
@@ -97,6 +101,14 @@ export function useAuth() {
     });
   }, [withLoading]);
 
+  const forgotPassword = useCallback(async (email) => {
+    return withLoading(() => apiForgotPassword(email));
+  }, [withLoading]);
+
+  const resetPassword = useCallback(async (code, newPassword) => {
+    return withLoading(() => apiResetPassword(code, newPassword));
+  }, [withLoading]);
+
   return {
     user,
     isAuthenticated: !!user,
@@ -113,6 +125,8 @@ export function useAuth() {
     deleteAccount,
     changePassword,
     updateProfile,
+    forgotPassword,
+    resetPassword,
     pendingRegistration,
   };
 }

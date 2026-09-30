@@ -6,7 +6,7 @@ export function CategoryChips({ categories, selected, onSelect, colorMap = {} })
         const color = colorMap[cat.categoryId];
         return (
           <button
-            key={cat.categoryId ?? cat.name}
+            key={cat.categoryId ?? `cat-${cat.name}`}
             type="button"
             aria-pressed={isActive}
             onClick={() => onSelect(cat)}

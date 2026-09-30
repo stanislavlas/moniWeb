@@ -10,6 +10,15 @@ import { INPUT_CLASS } from "../utils/styles.js";
 import { fromApiNecessity } from "../utils/money.js";
 import { entryEvents } from "../utils/entryEvents.js";
 
+/** Returns today's date in YYYY-MM-DD format using local time (not UTC). */
+function localToday() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm   = String(d.getMonth() + 1).padStart(2, "0");
+  const dd   = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export function AddPage({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -27,11 +36,11 @@ export function AddPage({ user }) {
     : "necessary";
 
   const [type, setType]         = useState(editingType);
-  const [amount, setAmount]     = useState(editing ? String(parseFloat(editing.amount?.value ?? editing.amount ?? "")) : "");
+  const [amount, setAmount]     = useState(editing ? (String(parseFloat(editing.amount?.value ?? editing.amount ?? 0) || "")) : "");
   const [currency, setCurrency] = useState(defaultCurrency);
   const [note, setNote]         = useState(editing?.note ?? "");
   const [categoryId, setCategoryId] = useState(editing?.categoryId ?? null);
-  const [date, setDate]         = useState(editing?.date ?? new Date().toISOString().slice(0, 10));
+  const [date, setDate]         = useState(editing?.date ?? localToday());
   const [necessity, setNecessity] = useState(editingNecessity);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
@@ -96,7 +105,7 @@ export function AddPage({ user }) {
         entryEvents.emit(date);
         setAmount("");
         setNote("");
-        setDate(new Date().toISOString().slice(0, 10));
+        setDate(localToday());
         setSuccess(true);
         clearTimeout(successTimerRef.current);
         successTimerRef.current = setTimeout(() => setSuccess(false), 3000);

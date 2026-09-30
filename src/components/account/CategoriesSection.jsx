@@ -29,7 +29,7 @@ const TAB_COLORS = {
 export function CategoriesSection() {
   const {
     categories, loading: catsLoading, error: catsError,
-    add: addCategory, remove: removeCategory,
+    add: addCategory, remove: removeCategory, clearError: clearCatsError,
   } = useCategoriesContext();
 
   const [tab, setTab]               = useState("expense");
@@ -114,11 +114,11 @@ export function CategoriesSection() {
   }
 
   const tabColor = TAB_COLORS[tab];
-  const visibleCats = categories.filter(c => (c.type || "expense") === tab);
+  const visibleCats = categories.filter(c => c.type === tab || (!c.type && tab === "expense"));
 
   return (
     <div className="space-y-6">
-      <FeedbackBanner message={catsError} type="error" />
+      <FeedbackBanner message={catsError} type="error" onDismiss={clearCatsError} />
       <FeedbackBanner message={catDeleteError} type="error" onDismiss={() => setCatDeleteError(null)} />
       <FeedbackBanner message={catSuccess} type="success" onDismiss={() => setCatSuccess(null)} />
 

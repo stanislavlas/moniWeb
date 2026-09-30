@@ -13,6 +13,7 @@ export function PasswordSection({ onChangePassword }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (newPw.length < 8) { setError("New password must be at least 8 characters"); return; }
     if (newPw !== confirmPw) { setError("Passwords do not match"); return; }
     setLoading(true); setError(null); setSuccess(null);
     try {

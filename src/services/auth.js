@@ -1,8 +1,6 @@
 import { logger } from "../utils/logger.js";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
-
-logger.info('auth', 'Auth service initialized');
+export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const KEY_ACCESS  = "moni_access_token";
 const KEY_REFRESH = "moni_refresh_token";
@@ -15,6 +13,12 @@ export function getStoredUser() {
 }
 
 function storeTokens({ accessToken, refreshToken, user }) {
+  if (!accessToken || !refreshToken) {
+    throw new Error("Invalid authentication response — missing tokens");
+  }
+  if (!user) {
+    throw new Error("Invalid authentication response — missing user");
+  }
   localStorage.setItem(KEY_ACCESS,  accessToken);
   localStorage.setItem(KEY_REFRESH, refreshToken);
   localStorage.setItem(KEY_USER,    JSON.stringify(user));
@@ -56,6 +60,12 @@ export async function refreshAccessToken() {
     throw Object.assign(new Error("Session expired"), { code: "AUTH_EXPIRED" });
   }
   logger.auth('Token refresh: success');
+  if (!data.accessToken) {
+    logger.error('auth', 'Token refresh returned no accessToken — clearing session');
+    clearTokens();
+    window.dispatchEvent(new Event("auth:expired"));
+    throw Object.assign(new Error("Invalid refresh response"), { code: "AUTH_EXPIRED" });
+  }
   localStorage.setItem(KEY_ACCESS,  data.accessToken);
   if (data.refreshToken) localStorage.setItem(KEY_REFRESH, data.refreshToken);
   return data.accessToken;
@@ -97,7 +107,7 @@ export async function login({ email, password }) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     logger.error('auth', `Login error: ${data.error || data.message || 'Login failed'}`);
     throw new Error(data.error || data.message || "Login failed");
@@ -114,7 +124,7 @@ export async function register({ name, email, password, currency }) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email, password, currency: currency || "EUR" }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     logger.error('auth', `Register error: ${data.error || data.message || 'Registration failed'}`);
     throw new Error(data.error || data.message || "Registration failed");
@@ -130,7 +140,7 @@ export async function verifyRegistration(code) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     logger.error('auth', `Verify error: ${data.error || data.message || 'Verification failed'}`);
     throw new Error(data.error || data.message || "Verification failed");
@@ -146,7 +156,7 @@ export async function resendVerificationCode(email) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || data.message || "Failed to resend code");
   return data;
 }
@@ -157,7 +167,7 @@ export async function forgotPassword(email) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || data.message || "Failed to request password reset");
   return data;
 }
@@ -168,7 +178,7 @@ export async function resetPassword(code, newPassword) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code, newPassword }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || data.message || "Failed to reset password");
   return data;
 }
@@ -198,14 +208,15 @@ export async function changePassword({ currentPassword, newPassword }) {
 
 export async function getProfile() {
   const data = await authRequest("/api/user");
-  const existing = getStoredUser();
-  const updated = { ...(existing ?? {}), ...data };
-  localStorage.setItem(KEY_USER, JSON.stringify(updated));
-  return updated;
+  // Use server response directly (full GET) — do not merge with localStorage,
+  // which would preserve fields the server has since removed (e.g. householdId).
+  localStorage.setItem(KEY_USER, JSON.stringify(data));
+  return data;
 }
 
 export async function updateProfile(patch) {
   const data = await authRequest("/api/user", { method: "PATCH", body: JSON.stringify(patch) });
+  // PATCH may return partial fields; merge over existing to preserve unreturned fields
   const existing = getStoredUser();
   const updated = { ...(existing ?? {}), ...data };
   localStorage.setItem(KEY_USER, JSON.stringify(updated));

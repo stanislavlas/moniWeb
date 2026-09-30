@@ -5,14 +5,11 @@ import { CurrencyPicker } from "../components/CurrencyPicker.jsx";
 import { Spinner } from "../components/Spinner.jsx";
 import { useCurrencies } from "../hooks/useCurrencies.js";
 import { INPUT_CLASS } from "../utils/styles.js";
-import {
-  forgotPassword as apiForgotPassword,
-  resetPassword as apiResetPassword,
-} from "../services/auth.js";
 
 export function AuthPage({
   onLogin, onRegister, loading, error, onClearError,
   pendingRegistration, onVerifyRegistration, onResendCode, onCancelRegistration,
+  onForgotPassword, onResetPassword,
 }) {
   const [mode, setMode]                   = useState("login"); // login | register | forgot | reset
   const [name, setName]                   = useState("");
@@ -51,7 +48,7 @@ export function AuthPage({
     if (newPassword !== confirmNewPw) { setLocalError("Passwords do not match"); return; }
     setLocalLoading(true); setLocalError(null);
     try {
-      await apiResetPassword(resetCode, newPassword);
+      await onResetPassword(resetCode, newPassword);
       // Set success first, then switch mode — avoids switchMode clearing the success message
       setLocalSuccess("Password reset successfully. Please sign in.");
       setMode("login");
@@ -73,15 +70,16 @@ export function AuthPage({
     onClearError?.();
 
     if (mode === "login") {
-      onLogin({ email, password });
+      await onLogin({ email, password });
     } else if (mode === "register") {
       if (password.length < 8) { setLocalError("Password must be at least 8 characters"); return; }
       if (password !== confirm) { setLocalError("Passwords do not match"); return; }
-      onRegister({ name, email, password, currency });
+      await onRegister({ name, email, password, currency });
     } else if (mode === "forgot") {
+      if (resetCodeSent) { await handleResetPassword(); return; } // Enter key in reset fields
       setLocalLoading(true);
       try {
-        await apiForgotPassword(email);
+        await onForgotPassword(email);
         setResetCode("");
         setLocalSuccess("Code sent to your email.");
         setResetCodeSent(true);
@@ -100,7 +98,7 @@ export function AuthPage({
         <div className="w-full max-w-sm bg-white dark:bg-neutral-900 rounded-2xl p-8 shadow-sm border border-gray-100 dark:border-neutral-800 space-y-4">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Verify Email</h1>
           <p className="text-sm text-gray-500">Enter the verification code sent to your email.</p>
-          <FeedbackBanner message={displayError} onDismiss={onClearError} />
+          <FeedbackBanner message={displayError} onDismiss={() => { setLocalError(null); onClearError?.(); }} />
           <input
             type="text"
             inputMode="numeric"
@@ -112,7 +110,8 @@ export function AuthPage({
           <button
             onClick={() => {
               if (!otpCode.trim() || otpCode.trim().length < 4) {
-                return; // don't send an empty or obviously short code
+                setLocalError("Please enter a valid verification code");
+                return;
               }
               onVerifyRegistration(otpCode);
             }}

@@ -26,14 +26,6 @@ export function listEntries(yearMonth = null, household = false) {
   return authRequest(`/api/entries${qs ? "?" + qs : ""}`);
 }
 
-export function listEntriesByYear(year, household = false) {
-  const params = new URLSearchParams();
-  params.set("year", String(year));
-  if (household) params.set("household", "true");
-  logger.info('entries', `listEntriesByYear (year=${year}, household=${household})`);
-  return authRequest(`/api/entries?${params.toString()}`);
-}
-
 export function createEntry(entry) {
   logger.info('entries', 'createEntry', { type: entry.type, date: entry.date });
   return authRequest("/api/entries", { method: "POST", body: JSON.stringify(entry) });

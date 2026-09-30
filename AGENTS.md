@@ -22,7 +22,7 @@ This repo is a Home Assistant add-on. HA detects updates by comparing the `versi
 ```
 src/
   App.jsx               # Root: owns useAuth, useTheme; renders AuthPage or routed app
-  main.jsx              # Vite entry — mounts <App /> inside <BrowserRouter>/<ErrorBoundary>/<HouseholdProvider>/<CategoriesProvider>
+  main.jsx              # Vite entry — mounts <App /> (App.jsx owns <BrowserRouter>, <ErrorBoundary>, <HouseholdProvider>, <CategoriesProvider>)
   pages/                # One file per route; receive props from App.jsx
   components/           # Reusable UI (no data-fetching); account/ subdirectory for AccountPage sections
   hooks/                # Custom hooks; own their state and expose it via return values

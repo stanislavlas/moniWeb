@@ -16,7 +16,7 @@ const CATEGORY_EMOJI = {
 };
 
 // Never log in production — avoids leaking user emails, route paths, and timing data
-const IS_DEV = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
+const IS_DEV = import.meta.env?.DEV ?? false;
 
 class Logger {
   _timestamp() {

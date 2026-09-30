@@ -1,18 +1,17 @@
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext } from "react";
 import { useCategories } from "../hooks/useCategories.js";
 
 const CategoriesContext = createContext(null);
 
 /**
  * Provides a single shared categories state for the whole app.
- * Categories are fetched once on mount (after auth, since this is inside the
- * authenticated shell) and shared across AddPage, HistoryPage, MonthOverviewPage,
- * YearOverviewPage, and CategoriesSection — preventing redundant API calls on
- * every navigation.
+ * Load is NOT triggered on mount — it must be triggered by App.jsx after
+ * authentication is confirmed, to avoid spurious 401s on cold start.
+ * Shared across AddPage, HistoryPage, MonthOverviewPage, YearOverviewPage,
+ * and CategoriesSection — preventing redundant API calls on every navigation.
  */
 export function CategoriesProvider({ children }) {
   const categories = useCategories();
-  useEffect(() => { categories.load(); }, [categories.load]);
   return (
     <CategoriesContext.Provider value={categories}>
       {children}
