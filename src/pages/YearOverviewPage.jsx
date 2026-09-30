@@ -139,6 +139,13 @@ export function YearOverviewPage({ user, showHousehold = false }) {
 
   const selData = monthlyData[selectedMonthIndex] ?? null;
 
+  const yearScrollerRef = useRef(null);
+  const handleYearWheel = (e) => {
+    if (!yearScrollerRef.current) return;
+    e.preventDefault();
+    yearScrollerRef.current.scrollLeft += e.deltaY + e.deltaX;
+  };
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-6">
 
@@ -149,7 +156,7 @@ export function YearOverviewPage({ user, showHousehold = false }) {
       </div>
 
       {/* Year scroller */}
-      <div className="overflow-x-auto thin-scrollbar pb-1">
+      <div ref={yearScrollerRef} onWheel={handleYearWheel} className="overflow-x-auto thin-scrollbar pb-1">
         <div className="flex gap-2 w-max px-1">
           {activeYears.map(y => (
             <button
