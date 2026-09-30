@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCategoriesContext } from "../contexts/CategoriesContext.jsx";
 import { useMonthCache } from "../hooks/useMonthCache.js";
+import { useMonthScrollerCount } from "../hooks/useMonthScrollerCount.js";
 import { deleteEntry } from "../services/entries.js";
 import { entryEvents } from "../utils/entryEvents.js";
 import { Spinner } from "../components/Spinner.jsx";
@@ -27,7 +28,9 @@ export function HistoryPage({ showHousehold = false, user }) {
   useEffect(() => { setFetchErrorHidden(false); }, [filterMonth]);
 
   const { categories, colorMap } = useCategoriesContext();
-  const { activeMonths, monthCache, fetchMonth, hasMoreMonths, loadMoreMonths } = useMonthCache(showHousehold);
+  const scrollerRef  = useRef(null);
+  const initialLimit = useMonthScrollerCount(scrollerRef);
+  const { activeMonths, monthCache, fetchMonth, hasMoreMonths, loadMoreMonths } = useMonthCache(showHousehold, initialLimit);
 
   useEffect(() => { fetchMonth(filterMonth); }, [filterMonth, fetchMonth]);
 
@@ -72,7 +75,6 @@ export function HistoryPage({ showHousehold = false, user }) {
 
   const monthLabel = formatYearMonth(filterMonth);
 
-  const scrollerRef = useRef(null);
   const handleWheel = (e) => {
     if (!scrollerRef.current) return;
     e.preventDefault();
@@ -84,7 +86,7 @@ export function HistoryPage({ showHousehold = false, user }) {
       <h1 className="text-2xl font-bold">History</h1>
 
       {/* Month scroller */}
-      <div ref={scrollerRef} onWheel={handleWheel} className="overflow-x-auto thin-scrollbar pb-1 max-w-[380px]">
+      <div ref={scrollerRef} onWheel={handleWheel} className="overflow-x-auto thin-scrollbar pb-1">
         <div className="flex gap-2 w-max px-1">
           {activeMonths.map(m => {
             const [y, mo] = m.split("-");

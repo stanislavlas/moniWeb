@@ -4,7 +4,6 @@ import { entryEvents } from "../utils/entryEvents.js";
 import { recentMonths } from "../utils/money.js";
 import { logger } from "../utils/logger.js";
 
-const INITIAL_MONTH_LIMIT = 13;
 const LOAD_MORE_STEP      = 6;
 
 /**
@@ -15,19 +14,31 @@ const LOAD_MORE_STEP      = 6;
  *   - monthCache       — { [YYYY-MM]: { entries, loading, error } }
  *   - fetchMonth(ym)   — fetch a single month on demand (idempotent)
  *   - hasMoreMonths    — true when hidden months remain
- *   - loadMoreMonths() — reveal the next 12 months (no extra API call)
+ *   - loadMoreMonths() — reveal the next LOAD_MORE_STEP months (no extra API call)
+ *
+ * @param {boolean} showHousehold
+ * @param {number}  initialLimit  — how many months to show initially (default 6)
  *
  * Automatically:
  *   - Fetches ALL months upfront on mount / household toggle
  *   - Invalidates a month when entryEvents fires for a date in that month
  *   - Resets all state when showHousehold toggles
  */
-export function useMonthCache(showHousehold) {
+export function useMonthCache(showHousehold, initialLimit = 6) {
   const [allMonths, setAllMonths]       = useState(() => recentMonths(3));
-  const [visibleCount, setVisibleCount] = useState(INITIAL_MONTH_LIMIT);
+  const [visibleCount, setVisibleCount] = useState(initialLimit);
   const [monthCache, setMonthCache]     = useState({});
   const [hasMoreMonths, setHasMoreMonths] = useState(false);
   const fetchedMonths                   = useRef(new Set());
+
+  // Derive the visible slice
+  const activeMonths = allMonths.slice(0, visibleCount);
+
+  // Sync visibleCount + hasMoreMonths when initialLimit is measured/updated
+  useEffect(() => {
+    setVisibleCount(initialLimit);
+    setHasMoreMonths(allMonths.length > initialLimit);
+  }, [initialLimit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derive the visible slice
   const activeMonths = allMonths.slice(0, visibleCount);
@@ -38,7 +49,7 @@ export function useMonthCache(showHousehold) {
     setMonthCache({});
     fetchedMonths.current = new Set();
     setAllMonths(recentMonths(3));
-    setVisibleCount(INITIAL_MONTH_LIMIT);
+    setVisibleCount(initialLimit);
     setHasMoreMonths(false);
 
     let cancelled = false;
@@ -50,7 +61,7 @@ export function useMonthCache(showHousehold) {
         const sorted = [...all].sort((a, b) => b.localeCompare(a));
         logger.info('cache', `activeMonths loaded: ${sorted.length} months (household=${showHousehold})`);
         setAllMonths(sorted);
-        setHasMoreMonths(sorted.length > INITIAL_MONTH_LIMIT);
+        setHasMoreMonths(sorted.length > initialLimit);
       })
       .catch((e) => {
         logger.warn('cache', 'Failed to load activeMonths — keeping seed', e?.message);

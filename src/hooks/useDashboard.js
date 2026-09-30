@@ -5,39 +5,41 @@ import { entryEvents } from "../utils/entryEvents.js";
 import { recentMonths } from "../utils/money.js";
 import { logger } from "../utils/logger.js";
 
-const INITIAL_MONTH_LIMIT = 13;
 const LOAD_MORE_STEP = 6;
 
 /**
  * Per-month dashboard cache backed by the GET /api/dashboard endpoint.
  *
- * Replaces useMonthCache + client-side summing. The API returns pre-computed
- * totals (totalIncome, totalExpenses, totalInvestments, savedAmount,
- * necessaryVsOptional, expensesByCategory, memberBreakdown) so the frontend
- * no longer needs to iterate raw entry arrays to derive these values.
- *
  * Provides:
  *   - activeMonths          — sorted YYYY-MM[] for the month scroller (visible slice)
- *   - allMonths             — full sorted YYYY-MM[] (fetched after first Show More)
  *   - dashboardCache        — { [YYYY-MM]: { data, loading, error } }
  *   - fetchDashboard(ym)    — fetch a single month on demand (idempotent)
  *   - hasMoreMonths         — true when there are hidden months still to reveal
- *   - loadMoreMonths()      — reveal the next 12 months
+ *   - loadMoreMonths()      — reveal the next LOAD_MORE_STEP months
+ *
+ * @param {boolean} showHousehold
+ * @param {number}  initialLimit  — how many months to show initially (default 6)
  *
  * Automatically:
  *   - Fetches all active months list on mount / household toggle
  *   - Invalidates a month when entryEvents fires for a date in that month
  *   - Resets all state when showHousehold toggles
  */
-export function useDashboard(showHousehold) {
+export function useDashboard(showHousehold, initialLimit = 6) {
   const [allMonths, setAllMonths]       = useState([]);
-  const [visibleCount, setVisibleCount] = useState(INITIAL_MONTH_LIMIT);
+  const [visibleCount, setVisibleCount] = useState(initialLimit);
   const [dashboardCache, setDashboardCache] = useState({});
   const [hasMoreMonths, setHasMoreMonths] = useState(false);
   const fetchedMonths = useRef(new Set());
 
   // Derive the visible slice from allMonths + visibleCount
   const activeMonths = allMonths.slice(0, visibleCount);
+
+  // Sync visibleCount + hasMoreMonths when initialLimit is measured/updated
+  useEffect(() => {
+    setVisibleCount(initialLimit);
+    setHasMoreMonths(allMonths.length > initialLimit);
+  }, [initialLimit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch the list of months that have data; merge with recent window.
   // Reset the cache first so the reset and fetch are atomic within one effect,
@@ -47,7 +49,7 @@ export function useDashboard(showHousehold) {
     setDashboardCache({});
     fetchedMonths.current = new Set();
     setAllMonths(recentMonths(3));
-    setVisibleCount(INITIAL_MONTH_LIMIT);
+    setVisibleCount(initialLimit);
     setHasMoreMonths(false);
 
     let cancelled = false;
@@ -59,7 +61,7 @@ export function useDashboard(showHousehold) {
         const sorted = [...all].sort((a, b) => b.localeCompare(a));
         logger.info("dashboard", `activeMonths loaded: ${sorted.length} months (household=${showHousehold})`);
         setAllMonths(sorted);
-        setHasMoreMonths(sorted.length > INITIAL_MONTH_LIMIT);
+        setHasMoreMonths(sorted.length > initialLimit);
       })
       .catch(e => {
         logger.warn("dashboard", "Failed to load activeMonths — keeping seed", e?.message);

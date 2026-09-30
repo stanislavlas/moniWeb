@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useCategoriesContext } from "../contexts/CategoriesContext.jsx";
 import { useDashboard } from "../hooks/useDashboard.js";
+import { useMonthScrollerCount } from "../hooks/useMonthScrollerCount.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 import { NecessityBreakdown } from "../components/NecessityBreakdown.jsx";
@@ -11,7 +12,10 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
   // Use UTC month to stay consistent with recentMonths() in money.js (which uses getUTCMonth)
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const { categories, colorMap } = useCategoriesContext();
-  const { activeMonths, dashboardCache, fetchDashboard, hasMoreMonths, loadMoreMonths } = useDashboard(showHousehold);
+
+  const scrollerRef   = useRef(null);
+  const initialLimit  = useMonthScrollerCount(scrollerRef);
+  const { activeMonths, dashboardCache, fetchDashboard, hasMoreMonths, loadMoreMonths } = useDashboard(showHousehold, initialLimit);
 
   useEffect(() => { fetchDashboard(filterMonth); }, [filterMonth, fetchDashboard]);
 
@@ -53,7 +57,6 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
   const summaryMax = Math.max(income, expense, investment, 1);
   const hasEntries = income > 0 || expense > 0 || investment > 0;
 
-  const scrollerRef = useRef(null);
   const handleWheel = (e) => {
     if (!scrollerRef.current) return;
     e.preventDefault();
@@ -69,8 +72,8 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
         <h1 className="text-xl font-bold">{monthLabel}</h1>
       </div>
 
-      {/* Month scroller — fixed width shows ~6 pills, wheel-scrollable */}
-      <div ref={scrollerRef} onWheel={handleWheel} className="overflow-x-auto thin-scrollbar pb-1 max-w-[380px]">
+      {/* Month scroller — width drives visible count via useMonthScrollerCount */}
+      <div ref={scrollerRef} onWheel={handleWheel} className="overflow-x-auto thin-scrollbar pb-1">
         <div className="flex gap-2 w-max px-1">
           {activeMonths.map(m => {
             const [y, mo] = m.split("-");
