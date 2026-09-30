@@ -40,9 +40,6 @@ export function useMonthCache(showHousehold, initialLimit = 6) {
     setHasMoreMonths(allMonths.length > initialLimit);
   }, [initialLimit]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Derive the visible slice
-  const activeMonths = allMonths.slice(0, visibleCount);
-
   // Fetch all months upfront; reset cache on household toggle.
   useEffect(() => {
     logger.info('cache', `household toggle changed (${showHousehold}) — resetting cache`);
