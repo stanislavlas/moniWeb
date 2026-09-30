@@ -4,48 +4,69 @@ import { entryEvents } from "../utils/entryEvents.js";
 import { recentMonths } from "../utils/money.js";
 import { logger } from "../utils/logger.js";
 
+const INITIAL_MONTH_LIMIT = 12;
+const LOAD_MORE_STEP      = 12;
+
 /**
- * Shared hook that manages a per-month entry cache for MonthOverviewPage and HistoryPage.
+ * Shared hook that manages a per-month entry cache for HistoryPage.
  *
  * Provides:
- *   - activeMonths  — sorted YYYY-MM list for the scroller
- *   - monthCache    — { [YYYY-MM]: { entries, loading, error } }
- *   - fetchMonth(ym) — fetch a single month on demand (idempotent)
+ *   - activeMonths     — visible YYYY-MM slice for the scroller
+ *   - monthCache       — { [YYYY-MM]: { entries, loading, error } }
+ *   - fetchMonth(ym)   — fetch a single month on demand (idempotent)
+ *   - hasMoreMonths    — true when hidden months remain
+ *   - loadMoreMonths() — reveal the next 12 months (no extra API call)
  *
  * Automatically:
- *   - Fetches the list of months with data from the API
+ *   - Fetches ALL months upfront on mount / household toggle
  *   - Invalidates a month when entryEvents fires for a date in that month
  *   - Resets all state when showHousehold toggles
  */
 export function useMonthCache(showHousehold) {
-  const [activeMonths, setActiveMonths] = useState(() => recentMonths(3));
+  const [allMonths, setAllMonths]       = useState(() => recentMonths(3));
+  const [visibleCount, setVisibleCount] = useState(INITIAL_MONTH_LIMIT);
   const [monthCache, setMonthCache]     = useState({});
+  const [hasMoreMonths, setHasMoreMonths] = useState(false);
   const fetchedMonths                   = useRef(new Set());
 
-  // Fetch the list of months that have data; merge with recent window.
-  // Reset the cache first so the reset and fetch are atomic within one effect,
-  // eliminating the race where a stale API response could overwrite the reset seed.
+  // Derive the visible slice
+  const activeMonths = allMonths.slice(0, visibleCount);
+
+  // Fetch all months upfront; reset cache on household toggle.
   useEffect(() => {
     logger.info('cache', `household toggle changed (${showHousehold}) — resetting cache`);
     setMonthCache({});
     fetchedMonths.current = new Set();
-    setActiveMonths(recentMonths(3));
+    setAllMonths(recentMonths(3));
+    setVisibleCount(INITIAL_MONTH_LIMIT);
+    setHasMoreMonths(false);
 
     let cancelled = false;
-    listActiveMonths(showHousehold)
+    listActiveMonths(showHousehold, 0)
       .then(data => {
         if (cancelled) return;
         const recent = new Set(recentMonths(3));
         const all = new Set([...(Array.isArray(data) ? data : []), ...recent]);
         const sorted = [...all].sort((a, b) => b.localeCompare(a));
         logger.info('cache', `activeMonths loaded: ${sorted.length} months (household=${showHousehold})`);
-        setActiveMonths(sorted);
+        setAllMonths(sorted);
+        setHasMoreMonths(sorted.length > INITIAL_MONTH_LIMIT);
       })
       .catch((e) => {
         logger.warn('cache', 'Failed to load activeMonths — keeping seed', e?.message);
       });
     return () => { cancelled = true; };
   }, [showHousehold]);
+
+  // Reveal the next batch — no API call needed
+  const loadMoreMonths = useCallback(() => {
+    setVisibleCount(prev => {
+      const next = prev + LOAD_MORE_STEP;
+      setHasMoreMonths(next < allMonths.length);
+      return next;
+    });
+    logger.info('cache', `loadMoreMonths: revealing next ${LOAD_MORE_STEP}`);
+  }, [allMonths.length]);
 
   // Fetch a single month on demand — idempotent
   const fetchMonth = useCallback(async (ym) => {
@@ -66,8 +87,6 @@ export function useMonthCache(showHousehold) {
   }, [showHousehold]);
 
   // Invalidate a month when an entry in that month is mutated, then immediately re-fetch
-  // so consumers see updated data without needing to change filterMonth.
-  // fetchMonth is included so the closure always has the current showHousehold value.
   useEffect(() => {
     return entryEvents.subscribe(date => {
       if (!date) return;
@@ -80,13 +99,12 @@ export function useMonthCache(showHousehold) {
         delete next[ym];
         return next;
       });
-      setActiveMonths(prev =>
+      setAllMonths(prev =>
         prev.includes(ym) ? prev : [...prev, ym].sort((a, b) => b.localeCompare(a))
       );
-      // Re-fetch the invalidated month so the UI updates without requiring filterMonth to change
       fetchMonth(ym);
     });
   }, [fetchMonth]);
 
-  return { activeMonths, monthCache, fetchMonth };
+  return { activeMonths, monthCache, fetchMonth, hasMoreMonths, loadMoreMonths };
 }

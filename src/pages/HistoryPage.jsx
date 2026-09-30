@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCategoriesContext } from "../contexts/CategoriesContext.jsx";
 import { useMonthCache } from "../hooks/useMonthCache.js";
@@ -6,7 +6,7 @@ import { deleteEntry } from "../services/entries.js";
 import { entryEvents } from "../utils/entryEvents.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
-import { getAmount, formatCurrency, formatYearMonth, fromApiNecessity } from "../utils/money.js";
+import { getAmount, formatCurrency, formatYearMonth, fromApiNecessity, MONTHS_SHORT } from "../utils/money.js";
 
 export function HistoryPage({ showHousehold = false, user }) {
   const navigate  = useNavigate();
@@ -27,7 +27,7 @@ export function HistoryPage({ showHousehold = false, user }) {
   useEffect(() => { setFetchErrorHidden(false); }, [filterMonth]);
 
   const { categories, colorMap } = useCategoriesContext();
-  const { activeMonths, monthCache, fetchMonth } = useMonthCache(showHousehold);
+  const { activeMonths, monthCache, fetchMonth, hasMoreMonths, loadMoreMonths } = useMonthCache(showHousehold);
 
   useEffect(() => { fetchMonth(filterMonth); }, [filterMonth, fetchMonth]);
 
@@ -72,22 +72,47 @@ export function HistoryPage({ showHousehold = false, user }) {
 
   const monthLabel = formatYearMonth(filterMonth);
 
+  const scrollerRef = useRef(null);
+  const handleWheel = (e) => {
+    if (!scrollerRef.current) return;
+    e.preventDefault();
+    scrollerRef.current.scrollLeft += e.deltaY + e.deltaX;
+  };
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">History</h1>
-        <select
-          value={filterMonth}
-          onChange={e => setFilterMonth(e.target.value)}
-          className="bg-gray-100 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white"
-        >
-          {!activeMonths.includes(filterMonth) && (
-            <option key={filterMonth} value={filterMonth}>{formatYearMonth(filterMonth)}</option>
+      <h1 className="text-2xl font-bold">History</h1>
+
+      {/* Month scroller */}
+      <div ref={scrollerRef} onWheel={handleWheel} className="overflow-x-auto thin-scrollbar pb-1 max-w-[380px]">
+        <div className="flex gap-2 w-max px-1">
+          {activeMonths.map(m => {
+            const [y, mo] = m.split("-");
+            const isActive = m === filterMonth;
+            return (
+              <button
+                key={m}
+                onClick={() => setFilterMonth(m)}
+                className={`flex flex-col items-center px-3 py-2 rounded-xl border transition-colors ${
+                  isActive
+                    ? "bg-brand-green border-brand-green text-white"
+                    : "bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-700 text-gray-700 dark:text-gray-200"
+                }`}
+              >
+                <span className="text-xs font-bold leading-tight">{MONTHS_SHORT[parseInt(mo, 10) - 1]}</span>
+                <span className={`text-[10px] font-medium leading-tight mt-0.5 ${isActive ? "text-white/80" : "text-gray-400"}`}>{y}</span>
+              </button>
+            );
+          })}
+          {hasMoreMonths && (
+            <button
+              onClick={loadMoreMonths}
+              className="flex flex-col items-center justify-center px-3 py-2 rounded-xl border border-dashed border-gray-300 dark:border-neutral-600 text-gray-400 dark:text-neutral-500 text-xs font-medium whitespace-nowrap transition-colors hover:border-gray-400 dark:hover:border-neutral-400 hover:text-gray-500 dark:hover:text-neutral-300"
+            >
+              Show more
+            </button>
           )}
-          {activeMonths.map(ym => (
-            <option key={ym} value={ym}>{formatYearMonth(ym)}</option>
-          ))}
-        </select>
+        </div>
       </div>
 
       {/* Search */}

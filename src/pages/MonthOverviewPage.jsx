@@ -69,8 +69,8 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
         <h1 className="text-xl font-bold">{monthLabel}</h1>
       </div>
 
-      {/* Month scroller */}
-      <div ref={scrollerRef} onWheel={handleWheel} className="overflow-x-auto thin-scrollbar pb-1">
+      {/* Month scroller — fixed width shows ~6 pills, wheel-scrollable */}
+      <div ref={scrollerRef} onWheel={handleWheel} className="overflow-x-auto thin-scrollbar pb-1 max-w-[380px]">
         <div className="flex gap-2 w-max px-1">
           {activeMonths.map(m => {
             const [y, mo] = m.split("-");
@@ -79,13 +79,13 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
               <button
                 key={m}
                 onClick={() => setFilterMonth(m)}
-                className={`flex flex-col items-center px-4 py-2.5 rounded-xl border transition-colors ${
+                className={`flex flex-col items-center px-3 py-2 rounded-xl border transition-colors ${
                   isActive
                     ? "bg-brand-green border-brand-green text-white"
                     : "bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-700 text-gray-700 dark:text-gray-200"
                 }`}
               >
-                <span className="text-sm font-bold leading-tight">{MONTHS_SHORT[parseInt(mo, 10) - 1]}</span>
+                <span className="text-xs font-bold leading-tight">{MONTHS_SHORT[parseInt(mo, 10) - 1]}</span>
                 <span className={`text-[10px] font-medium leading-tight mt-0.5 ${isActive ? "text-white/80" : "text-gray-400"}`}>{y}</span>
               </button>
             );
@@ -93,7 +93,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
           {hasMoreMonths && (
             <button
               onClick={loadMoreMonths}
-              className="flex flex-col items-center justify-center px-4 py-2.5 rounded-xl border border-dashed border-gray-300 dark:border-neutral-600 text-gray-400 dark:text-neutral-500 text-xs font-medium whitespace-nowrap transition-colors hover:border-gray-400 dark:hover:border-neutral-400 hover:text-gray-500 dark:hover:text-neutral-300"
+              className="flex flex-col items-center justify-center px-3 py-2 rounded-xl border border-dashed border-gray-300 dark:border-neutral-600 text-gray-400 dark:text-neutral-500 text-xs font-medium whitespace-nowrap transition-colors hover:border-gray-400 dark:hover:border-neutral-400 hover:text-gray-500 dark:hover:text-neutral-300"
             >
               Show more
             </button>
