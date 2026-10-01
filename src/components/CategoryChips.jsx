@@ -1,4 +1,17 @@
+import { useRef } from "react";
+
 export function CategoryChips({ categories, selected, onSelect, colorMap = {} }) {
+  const scrollerRef = useRef(null);
+
+  const handleWheel = (e) => {
+    if (!scrollerRef.current) return;
+    e.preventDefault();
+    scrollerRef.current.scrollLeft += e.deltaY + e.deltaX;
+  };
+
+  const topRow    = categories.filter((_, i) => i % 2 === 0);
+  const bottomRow = categories.filter((_, i) => i % 2 !== 0);
+
   function renderChip(cat) {
     const isActive = selected?.categoryId === cat.categoryId;
     const color    = colorMap[cat.categoryId];
@@ -25,9 +38,10 @@ export function CategoryChips({ categories, selected, onSelect, colorMap = {} })
   }
 
   return (
-    <div className="overflow-y-auto thin-scrollbar max-h-28 pr-1">
-      <div className="flex flex-wrap gap-2">
-        {categories.map(renderChip)}
+    <div ref={scrollerRef} onWheel={handleWheel} className="overflow-x-auto thin-scrollbar pb-1">
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2 w-max">{topRow.map(renderChip)}</div>
+        <div className="flex gap-2 w-max">{bottomRow.map(renderChip)}</div>
       </div>
     </div>
   );
