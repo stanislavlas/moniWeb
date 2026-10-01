@@ -114,7 +114,7 @@ export function CategoriesSection() {
   }
 
   const tabColor = TAB_COLORS[tab];
-  const visibleCats = categories.filter(c => c.type === tab || (!c.type && tab === "expense"));
+  const visibleCats = categories.filter(c => !c.isDefault && (c.type === tab || (!c.type && tab === "expense")));
 
   return (
     <div className="space-y-6">

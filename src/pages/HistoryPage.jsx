@@ -9,6 +9,33 @@ import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 import { getAmount, formatCurrency, formatYearMonth, fromApiNecessity, MONTHS_SHORT } from "../utils/money.js";
 
+// Deterministic per-user color palette derived from userId.
+const USER_PALETTES = [
+  { bg: "bg-violet-100 dark:bg-violet-900/30", border: "border-violet-400 dark:border-violet-600", text: "text-violet-700 dark:text-violet-300" },
+  { bg: "bg-pink-100 dark:bg-pink-900/30",     border: "border-pink-400 dark:border-pink-600",     text: "text-pink-700 dark:text-pink-300"   },
+  { bg: "bg-teal-100 dark:bg-teal-900/30",     border: "border-teal-400 dark:border-teal-600",     text: "text-teal-700 dark:text-teal-300"   },
+  { bg: "bg-orange-100 dark:bg-orange-900/30", border: "border-orange-400 dark:border-orange-600", text: "text-orange-700 dark:text-orange-300" },
+  { bg: "bg-cyan-100 dark:bg-cyan-900/30",     border: "border-cyan-400 dark:border-cyan-600",     text: "text-cyan-700 dark:text-cyan-300"   },
+  { bg: "bg-lime-100 dark:bg-lime-900/30",     border: "border-lime-400 dark:border-lime-600",     text: "text-lime-700 dark:text-lime-300"   },
+];
+
+function hashUserId(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (Math.imul(31, h) + id.charCodeAt(i)) | 0;
+  return Math.abs(h) % USER_PALETTES.length;
+}
+
+function userPalette(userId) {
+  return USER_PALETTES[hashUserId(userId)];
+}
+
+// Toggle a value in/out of a Set, returning a new Set.
+function toggle(set, value) {
+  const next = new Set(set);
+  next.has(value) ? next.delete(value) : next.add(value);
+  return next;
+}
+
 export function HistoryPage({ showHousehold = false, user }) {
   const navigate  = useNavigate();
   const currency  = user?.currency ?? "EUR";
@@ -21,8 +48,10 @@ export function HistoryPage({ showHousehold = false, user }) {
   const [deleteError, setDeleteError]  = useState(null);
   const [fetchErrorHidden, setFetchErrorHidden] = useState(false);
   const [search, setSearch]           = useState("");
-  const [typeFilter, setTypeFilter]   = useState("all");
-  const [necFilter, setNecFilter]     = useState("all");
+  // Sets of active values — empty means "show all"
+  const [typeFilters, setTypeFilters] = useState(new Set());
+  const [necFilters, setNecFilters]   = useState(new Set());
+  const [userFilters, setUserFilters] = useState(new Set());
 
   // Reset dismiss state when the month changes (new fetch, new potential error)
   useEffect(() => { setFetchErrorHidden(false); }, [filterMonth]);
@@ -41,8 +70,9 @@ export function HistoryPage({ showHousehold = false, user }) {
 
   const filtered = useMemo(() => {
     let list = entries;
-    if (typeFilter !== "all") list = list.filter(e => e.type === typeFilter.toUpperCase());
-    if (necFilter  !== "all") list = list.filter(e => fromApiNecessity(e.necessity) === necFilter);
+    if (typeFilters.size > 0) list = list.filter(e => typeFilters.has(e.type.toLowerCase()));
+    if (necFilters.size  > 0) list = list.filter(e => necFilters.has(fromApiNecessity(e.necessity)));
+    if (userFilters.size > 0) list = list.filter(e => userFilters.has(e.userId));
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(e => {
@@ -51,7 +81,18 @@ export function HistoryPage({ showHousehold = false, user }) {
       });
     }
     return list;
-  }, [entries, typeFilter, necFilter, search, categories]);
+  }, [entries, typeFilters, necFilters, userFilters, search, categories]);
+
+  // Unique authors present in the current month — only useful in household mode.
+  const authors = useMemo(() => {
+    const seen = new Map();
+    for (const e of entries) {
+      if (e.userId && !seen.has(e.userId)) seen.set(e.userId, e.authorName || e.userId);
+    }
+    return Array.from(seen.entries()).map(([userId, name]) => ({ userId, name }));
+  }, [entries]);
+
+  const hasFilters = typeFilters.size > 0 || necFilters.size > 0 || userFilters.size > 0 || search.trim();
 
   const handleDelete = useCallback(async (id) => {
     if (!window.confirm("Delete this entry?")) return;
@@ -80,6 +121,9 @@ export function HistoryPage({ showHousehold = false, user }) {
     e.preventDefault();
     scrollerRef.current.scrollLeft += e.deltaY + e.deltaX;
   };
+
+  // Shared inactive chip classes
+  const inactiveChip = "bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-neutral-500";
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-4">
@@ -132,55 +176,65 @@ export function HistoryPage({ showHousehold = false, user }) {
         )}
       </div>
 
-      {/* Filters */}
+      {/* Type filter — each chip is an independent toggle */}
       <div className="flex flex-wrap gap-2">
         {[
-          { value: "all",        label: "All" },
-          { value: "income",     label: "💰 Income" },
-          { value: "expense",    label: "💸 Expenses" },
-          { value: "investment", label: "📈 Investments" },
-        ].map(({ value, label }) => (
+          { value: "income",     label: "💰 Income",      active: "bg-green-100 dark:bg-green-900/30 border-green-400 dark:border-green-600 text-green-700 dark:text-green-400" },
+          { value: "expense",    label: "💸 Expenses",    active: "bg-red-100 dark:bg-red-900/30 border-red-400 dark:border-red-600 text-red-700 dark:text-red-400" },
+          { value: "investment", label: "📈 Investments", active: "bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600 text-blue-700 dark:text-blue-400" },
+        ].map(({ value, label, active }) => (
           <button
             key={value}
-            onClick={() => { setTypeFilter(value); if (value === "investment") setNecFilter("all"); }}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
-              typeFilter === value
-                ? value === "income"     ? "bg-green-100  dark:bg-green-900/30  border-green-400  dark:border-green-600  text-green-700  dark:text-green-400"
-                : value === "expense"    ? "bg-red-100    dark:bg-red-900/30    border-red-400    dark:border-red-600    text-red-700    dark:text-red-400"
-                : value === "investment" ? "bg-blue-100   dark:bg-blue-900/30   border-blue-400   dark:border-blue-600   text-blue-700   dark:text-blue-400"
-                :                         "bg-gray-200    dark:bg-neutral-700   border-gray-400   dark:border-neutral-500 text-gray-700  dark:text-gray-200"
-                : "bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-neutral-500"
-            }`}
+            onClick={() => {
+              setTypeFilters(t => toggle(t, value));
+              // Clear necessity filter when investment is deselected entirely and it was the only type
+              if (value === "investment") setNecFilters(new Set());
+            }}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${typeFilters.has(value) ? active : inactiveChip}`}
           >
             {label}
           </button>
         ))}
+      </div>
 
-        {typeFilter !== "investment" && (
-          <>
-            <div className="w-px bg-gray-200 dark:bg-neutral-700 self-stretch mx-1" />
-            {[
-              { value: "all",       label: "All types" },
-              { value: "necessary", label: "🔒 Necessary" },
-              { value: "optional",  label: "✂️ Optional" },
-            ].map(({ value, label }) => (
+      {/* Necessity filter — hidden when only investments are selected */}
+      {!(typeFilters.size > 0 && typeFilters.size === [...typeFilters].filter(t => t === "investment").length) && (
+        <div className="flex flex-wrap gap-2">
+          {[
+            { value: "necessary", label: "🔒 Necessary", active: "bg-red-100 dark:bg-red-900/30 border-red-400 dark:border-red-600 text-red-700 dark:text-red-400" },
+            { value: "optional",  label: "✂️ Optional",  active: "bg-amber-100 dark:bg-amber-900/30 border-amber-400 dark:border-amber-600 text-amber-700 dark:text-amber-400" },
+          ].map(({ value, label, active }) => (
+            <button
+              key={value}
+              onClick={() => setNecFilters(n => toggle(n, value))}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${necFilters.has(value) ? active : inactiveChip}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Member filter — only shown when multiple authors are present in this month */}
+      {authors.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {authors.map(({ userId, name }) => {
+            const p       = userPalette(userId);
+            const isActive = userFilters.has(userId);
+            return (
               <button
-                key={value}
-                onClick={() => setNecFilter(value)}
+                key={userId}
+                onClick={() => setUserFilters(u => toggle(u, userId))}
                 className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
-                  necFilter === value
-                    ? value === "necessary" ? "bg-red-100   dark:bg-red-900/30   border-red-400   dark:border-red-600   text-red-700   dark:text-red-400"
-                    : value === "optional"  ? "bg-amber-100 dark:bg-amber-900/30 border-amber-400 dark:border-amber-600 text-amber-700 dark:text-amber-400"
-                    :                        "bg-gray-200   dark:bg-neutral-700  border-gray-400  dark:border-neutral-500 text-gray-700 dark:text-gray-200"
-                    : "bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-neutral-500"
+                  isActive ? `${p.bg} ${p.border} ${p.text}` : inactiveChip
                 }`}
               >
-                {label}
+                {userId === user?.userId ? `${name} (you)` : name}
               </button>
-            ))}
-          </>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       <p className="text-xs text-gray-400">
         {filtered.length} transaction{filtered.length !== 1 ? "s" : ""}{loading ? " (loading…)" : ""}
@@ -193,7 +247,7 @@ export function HistoryPage({ showHousehold = false, user }) {
 
       {!loading && filtered.length === 0 && (
         <p className="text-center text-gray-400 py-12">
-          {search || typeFilter !== "all" || necFilter !== "all"
+          {hasFilters
             ? "No matching transactions."
             : `No entries for ${monthLabel}.`}
         </p>
