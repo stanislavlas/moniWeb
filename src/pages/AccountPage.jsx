@@ -21,7 +21,12 @@ export function AccountPage({ user, onChangePassword, onUpdateProfile, onDeleteA
   const [section, setSection] = useState("profile");
 
   // Pending invitations — loading state now tracked per-invitation inside the component
-  const { pendingInvitations, loaded: householdLoaded, acceptInvitation, rejectInvitation } = useHouseholdContext();
+  const { pendingInvitations, loaded: householdLoaded, acceptInvitation, rejectInvitation, refreshProfile } = useHouseholdContext();
+
+  async function handleAcceptInvitation(invitationId) {
+    await acceptInvitation(invitationId);
+    await refreshProfile?.();
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-6">
@@ -31,7 +36,7 @@ export function AccountPage({ user, onChangePassword, onUpdateProfile, onDeleteA
       {householdLoaded && (
         <PendingInvitationsCard
           invitations={pendingInvitations}
-          onAccept={acceptInvitation}
+          onAccept={handleAcceptInvitation}
           onReject={rejectInvitation}
         />
       )}

@@ -16,6 +16,7 @@ export function HouseholdSection({ user, onUpdateProfile }) {
     loadSentInvitations, sentInvitations,
     removeMember, leave, deleteHousehold, rename,
     clearError: clearHouseholdError,
+    refreshProfile,
   } = useHouseholdContext();
 
   const { loading: actionLoading, error: actionError, run, clearError: clearActionError } = useAsyncAction();
@@ -45,13 +46,10 @@ export function HouseholdSection({ user, onUpdateProfile }) {
   async function handleCreate(e) {
     e.preventDefault();
     try {
-      const data = await run(() => create(householdName));
+      await run(() => create(householdName));
       setHouseholdName("");
       showSuccess("Household created.");
-      // Non-fatal: profile update failure doesn't undo the household creation
-      if (onUpdateProfile && data?.householdId) {
-        await onUpdateProfile({ householdId: data.householdId }).catch(() => {});
-      }
+      await refreshProfile?.();
     } catch {}
   }
 
@@ -84,7 +82,7 @@ export function HouseholdSection({ user, onUpdateProfile }) {
     try {
       await run(() => leave());
       setView("main");
-      if (onUpdateProfile) await onUpdateProfile({ householdId: null }).catch(() => {});
+      await refreshProfile?.();
     } catch {}
   }
 
@@ -93,7 +91,7 @@ export function HouseholdSection({ user, onUpdateProfile }) {
     try {
       await run(() => deleteHousehold());
       setView("main");
-      if (onUpdateProfile) await onUpdateProfile({ householdId: null }).catch(() => {});
+      await refreshProfile?.();
     } catch {}
   }
 

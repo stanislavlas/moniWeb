@@ -24,38 +24,12 @@ function AppContent() {
     pendingRegistration, verifyRegistration,
     resendRegistrationCode, cancelRegistrationVerification,
     deleteAccount, changePassword, updateProfile,
+    refreshProfile,
     forgotPassword, resetPassword,
   } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
 
-  const {
-    household, pendingInvitations, loaded: householdLoaded, load: loadHousehold, reset: resetHousehold,
-  } = useHouseholdContext();
-
-  const { load: loadCategories, reset: resetCategories } = useCategoriesContext();
-
   const [showPersonalOnly, setShowPersonalOnly] = useState(false);
-
-  // Load household and categories only after authentication is confirmed
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadHousehold();
-      loadCategories();
-    } else {
-      // Reset household and categories state so a subsequent login never sees
-      // a previous user's data
-      resetHousehold();
-      resetCategories();
-    }
-  }, [isAuthenticated, loadHousehold, loadCategories, resetHousehold, resetCategories]);
-
-  // Reset personal-only toggle when leaving a household
-  useEffect(() => {
-    if (!household) setShowPersonalOnly(false);
-  }, [household]);
-
-  const pendingCount = pendingInvitations?.length ?? 0;
-  const showHousehold = !!household && !showPersonalOnly;
 
   if (!ready) {
     return (
@@ -82,6 +56,58 @@ function AppContent() {
       />
     );
   }
+
+  return (
+    <HouseholdProvider refreshProfile={refreshProfile}>
+      <CategoriesProvider>
+        <AppRoutes
+          user={user}
+          isAuthenticated={isAuthenticated}
+          logout={logout}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          showPersonalOnly={showPersonalOnly}
+          setShowPersonalOnly={setShowPersonalOnly}
+          changePassword={changePassword}
+          updateProfile={updateProfile}
+          deleteAccount={deleteAccount}
+        />
+      </CategoriesProvider>
+    </HouseholdProvider>
+  );
+}
+
+function AppRoutes({
+  user, isAuthenticated, logout, theme, toggleTheme,
+  showPersonalOnly, setShowPersonalOnly,
+  changePassword, updateProfile, deleteAccount,
+}) {
+  const {
+    household, pendingInvitations, load: loadHousehold, reset: resetHousehold,
+  } = useHouseholdContext();
+
+  const { load: loadCategories, reset: resetCategories } = useCategoriesContext();
+
+  // Load household and categories only after authentication is confirmed
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadHousehold();
+      loadCategories();
+    } else {
+      // Reset household and categories state so a subsequent login never sees
+      // a previous user's data
+      resetHousehold();
+      resetCategories();
+    }
+  }, [isAuthenticated, loadHousehold, loadCategories, resetHousehold, resetCategories]);
+
+  // Reset personal-only toggle when leaving a household
+  useEffect(() => {
+    if (!household) setShowPersonalOnly(false);
+  }, [household, setShowPersonalOnly]);
+
+  const pendingCount = pendingInvitations?.length ?? 0;
+  const showHousehold = !!household && !showPersonalOnly;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-950 text-gray-900 dark:text-white">
@@ -130,11 +156,7 @@ export default function App() {
           will show a full-page fallback. If finer-grained recovery is needed in
           the future, consider wrapping individual pages instead. */}
       <ErrorBoundary>
-        <HouseholdProvider>
-          <CategoriesProvider>
-            <AppContent />
-          </CategoriesProvider>
-        </HouseholdProvider>
+        <AppContent />
       </ErrorBoundary>
     </BrowserRouter>
   );

@@ -101,6 +101,19 @@ export function useAuth() {
     });
   }, [withLoading]);
 
+  // Re-fetch the user profile from the server and update local state.
+  // Call this after household membership changes (create, join, leave, delete) so that
+  // user.householdId is up to date and household-gated UI (e.g. the toggle) appears immediately.
+  const refreshProfile = useCallback(async () => {
+    try {
+      const fresh = await apiGetProfile();
+      setUser(fresh);
+      return fresh;
+    } catch {
+      // Non-critical — ignore failures silently
+    }
+  }, []);
+
   const forgotPassword = useCallback(async (email) => {
     return withLoading(() => apiForgotPassword(email));
   }, [withLoading]);
@@ -125,6 +138,7 @@ export function useAuth() {
     deleteAccount,
     changePassword,
     updateProfile,
+    refreshProfile,
     forgotPassword,
     resetPassword,
     pendingRegistration,
