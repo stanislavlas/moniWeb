@@ -269,23 +269,6 @@ export function CategoriesSection() {
       {catsLoading && <div className="flex justify-center py-8"><Spinner size={8} /></div>}
       {!catsLoading && (
         <div className="space-y-4">
-          {/* Built-in */}
-          <div>
-            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Built-in</h2>
-            <div className="rounded-2xl border border-gray-100 dark:border-neutral-800 overflow-hidden">
-              {builtinCats.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">No built-in {tab} categories.</p>
-              ) : (
-                builtinCats.map((cat, i) => (
-                  <div key={cat.categoryId}>
-                    {i > 0 && <div className="h-px bg-gray-100 dark:bg-neutral-800" />}
-                    <CategoryRow cat={cat} />
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
           {/* Custom */}
           <div>
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Custom</h2>
@@ -297,6 +280,23 @@ export function CategoriesSection() {
                   <div key={cat.categoryId}>
                     {i > 0 && <div className="h-px bg-gray-100 dark:bg-neutral-800" />}
                     <CategoryRow cat={cat} onDelete={handleDelete} />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Built-in */}
+          <div>
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Built-in</h2>
+            <div className="rounded-2xl border border-gray-100 dark:border-neutral-800 overflow-hidden">
+              {builtinCats.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No built-in {tab} categories.</p>
+              ) : (
+                builtinCats.map((cat, i) => (
+                  <div key={cat.categoryId}>
+                    {i > 0 && <div className="h-px bg-gray-100 dark:bg-neutral-800" />}
+                    <CategoryRow cat={cat} />
                   </div>
                 ))
               )}
