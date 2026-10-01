@@ -114,7 +114,25 @@ export function CategoriesSection() {
   }
 
   const tabColor = TAB_COLORS[tab];
-  const visibleCats = categories.filter(c => !c.isDefault && (c.type === tab || (!c.type && tab === "expense")));
+  const tabCats    = categories.filter(c => c.type === tab || (!c.type && tab === "expense"));
+  const builtinCats = tabCats.filter(c =>  c.isDefault);
+  const customCats  = tabCats.filter(c => !c.isDefault);
+
+  function CategoryRow({ cat, onDelete }) {
+    return (
+      <div className="bg-white dark:bg-neutral-900 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-xl">{cat.icon || "🙂"}</span>
+          <span className="text-sm font-medium text-gray-900 dark:text-white">{cat.name}</span>
+        </div>
+        {onDelete && (
+          <button onClick={() => onDelete(cat.categoryId)} className="text-xs text-brand-red hover:underline px-2 py-1">
+            Delete
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -142,7 +160,7 @@ export function CategoriesSection() {
       {/* Add card */}
       <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Custom categories</h2>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Add custom category</h2>
           <button
             onClick={() => { setShowForm(v => !v); setCatName(""); setCatIcon(""); setCatAddError(null); }}
             className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
@@ -242,35 +260,43 @@ export function CategoriesSection() {
         )}
       </div>
 
-      {/* List */}
+      {/* Lists */}
       {catsLoading && <div className="flex justify-center py-8"><Spinner size={8} /></div>}
       {!catsLoading && (
-        <div className="rounded-2xl border border-gray-100 dark:border-neutral-800 overflow-hidden">
-          {visibleCats.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">No custom {tab} categories yet.</p>
-          ) : (
-            visibleCats.map((cat, i) => (
-              <div key={cat.categoryId}>
-                {i > 0 && <div className="h-px bg-gray-100 dark:bg-neutral-800" />}
-                <div className="bg-white dark:bg-neutral-900 px-4 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">{cat.icon || "🙂"}</span>
-                    <div>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">{cat.name}</span>
-                      {cat.isDefault && (
-                        <span className="ml-2 text-xs text-gray-400 bg-gray-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">built-in</span>
-                      )}
-                    </div>
+        <div className="space-y-4">
+          {/* Built-in */}
+          <div>
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Built-in</h2>
+            <div className="rounded-2xl border border-gray-100 dark:border-neutral-800 overflow-hidden">
+              {builtinCats.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No built-in {tab} categories.</p>
+              ) : (
+                builtinCats.map((cat, i) => (
+                  <div key={cat.categoryId}>
+                    {i > 0 && <div className="h-px bg-gray-100 dark:bg-neutral-800" />}
+                    <CategoryRow cat={cat} />
                   </div>
-                  {!cat.isDefault && (
-                    <button onClick={() => handleDelete(cat.categoryId)} className="text-xs text-brand-red hover:underline px-2 py-1">
-                      Delete
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Custom */}
+          <div>
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Custom</h2>
+            <div className="rounded-2xl border border-gray-100 dark:border-neutral-800 overflow-hidden">
+              {customCats.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No custom {tab} categories yet.</p>
+              ) : (
+                customCats.map((cat, i) => (
+                  <div key={cat.categoryId}>
+                    {i > 0 && <div className="h-px bg-gray-100 dark:bg-neutral-800" />}
+                    <CategoryRow cat={cat} onDelete={handleDelete} />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
