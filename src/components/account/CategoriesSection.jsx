@@ -123,7 +123,12 @@ export function CategoriesSection() {
       <div className="bg-white dark:bg-neutral-900 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-xl">{cat.icon || "🙂"}</span>
-          <span className="text-sm font-medium text-gray-900 dark:text-white">{cat.name}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">{cat.name}</span>
+            {cat.isDefault && (
+              <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">built-in</span>
+            )}
+          </div>
         </div>
         {onDelete && (
           <button onClick={() => onDelete(cat.categoryId)} className="text-xs text-brand-red hover:underline px-2 py-1">
