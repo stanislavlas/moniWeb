@@ -1,26 +1,21 @@
 import { useState } from "react";
 import { useHouseholdContext } from "../contexts/HouseholdContext.jsx";
 import { PendingInvitationsCard } from "../components/account/PendingInvitationsCard.jsx";
-import { ProfileSection }       from "../components/account/ProfileSection.jsx";
-import { PasswordSection }      from "../components/account/PasswordSection.jsx";
-import { SettingsSection }      from "../components/account/SettingsSection.jsx";
-import { CategoriesSection }    from "../components/account/CategoriesSection.jsx";
-import { HouseholdSection }     from "../components/account/HouseholdSection.jsx";
-import { DangerSection }        from "../components/account/DangerSection.jsx";
+import { ProfileSection }    from "../components/account/ProfileSection.jsx";
+import { CategoriesSection } from "../components/account/CategoriesSection.jsx";
+import { HouseholdSection }  from "../components/account/HouseholdSection.jsx";
+import { RecurringSection }  from "../components/account/RecurringSection.jsx";
 
 const SECTIONS = [
-  { id: "profile",       label: "Profile"        },
-  { id: "password",      label: "Password"       },
-  { id: "settings",      label: "Settings"       },
-  { id: "categories",    label: "Categories"     },
-  { id: "household",     label: "Household"      },
-  { id: "danger",        label: "Danger Zone"    },
+  { id: "profile",    label: "Profile"    },
+  { id: "categories", label: "Categories" },
+  { id: "household",  label: "Household"  },
+  { id: "recurring",  label: "Recurring"  },
 ];
 
 export function AccountPage({ user, onChangePassword, onUpdateProfile, onDeleteAccount }) {
   const [section, setSection] = useState("profile");
 
-  // Pending invitations — loading state now tracked per-invitation inside the component
   const { pendingInvitations, loaded: householdLoaded, acceptInvitation, rejectInvitation, refreshProfile } = useHouseholdContext();
 
   async function handleAcceptInvitation(invitationId) {
@@ -32,7 +27,6 @@ export function AccountPage({ user, onChangePassword, onUpdateProfile, onDeleteA
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-6">
       <h1 className="text-2xl font-bold">Account</h1>
 
-      {/* Pending invitations — visible on all tabs */}
       {householdLoaded && (
         <PendingInvitationsCard
           invitations={pendingInvitations}
@@ -41,7 +35,6 @@ export function AccountPage({ user, onChangePassword, onUpdateProfile, onDeleteA
         />
       )}
 
-      {/* Section tabs */}
       <div className="flex gap-1 border-b border-gray-100 dark:border-neutral-800 overflow-x-auto">
         {SECTIONS.map(s => (
           <button
@@ -58,12 +51,17 @@ export function AccountPage({ user, onChangePassword, onUpdateProfile, onDeleteA
         ))}
       </div>
 
-      {section === "profile"       && <ProfileSection       user={user} onUpdateProfile={onUpdateProfile} />}
-      {section === "password"      && <PasswordSection      onChangePassword={onChangePassword} />}
-      {section === "settings"      && <SettingsSection      user={user} onUpdateProfile={onUpdateProfile} />}
-      {section === "categories"    && <CategoriesSection />}
-      {section === "household"     && <HouseholdSection     user={user} onUpdateProfile={onUpdateProfile} />}
-      {section === "danger"        && <DangerSection        onDeleteAccount={onDeleteAccount} />}
+      {section === "profile"    && (
+        <ProfileSection
+          user={user}
+          onUpdateProfile={onUpdateProfile}
+          onChangePassword={onChangePassword}
+          onDeleteAccount={onDeleteAccount}
+        />
+      )}
+      {section === "categories" && <CategoriesSection />}
+      {section === "household"  && <HouseholdSection user={user} onUpdateProfile={onUpdateProfile} />}
+      {section === "recurring"  && <RecurringSection user={user} />}
     </div>
   );
 }
