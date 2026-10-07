@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { listRecurring, deactivateRecurring, deleteRecurring } from "../services/recurring.js";
+import { listRecurring, updateRecurring, deactivateRecurring, reactivateRecurring, deleteRecurring } from "../services/recurring.js";
 import { logger } from "../utils/logger.js";
 
 export function useRecurring() {
@@ -21,12 +21,33 @@ export function useRecurring() {
     }
   }, []);
 
+  const update = useCallback(async (id, payload) => {
+    try {
+      const updated = await updateRecurring(id, payload);
+      setTemplates(prev => prev.map(t => t.recurringId === id ? updated : t));
+      return updated;
+    } catch (e) {
+      logger.error("recurring", "update failed", e.message);
+      throw e;
+    }
+  }, []);
+
   const deactivate = useCallback(async (id) => {
     try {
       const updated = await deactivateRecurring(id);
       setTemplates(prev => prev.map(t => t.recurringId === id ? updated : t));
     } catch (e) {
       logger.error("recurring", "deactivate failed", e.message);
+      throw e;
+    }
+  }, []);
+
+  const reactivate = useCallback(async (id) => {
+    try {
+      const updated = await reactivateRecurring(id);
+      setTemplates(prev => prev.map(t => t.recurringId === id ? updated : t));
+    } catch (e) {
+      logger.error("recurring", "reactivate failed", e.message);
       throw e;
     }
   }, []);
@@ -41,5 +62,5 @@ export function useRecurring() {
     }
   }, []);
 
-  return { templates, loading, error, load, deactivate, remove };
+  return { templates, loading, error, load, update, deactivate, reactivate, remove, clearError: useCallback(() => setError(null), []) };
 }
