@@ -105,7 +105,6 @@ export function AddPage({ user }) {
         entryEvents.emit(date);
         setAmount("");
         setNote("");
-        setDate(localToday());
         setSuccess(true);
         clearTimeout(successTimerRef.current);
         successTimerRef.current = setTimeout(() => setSuccess(false), 3000);
