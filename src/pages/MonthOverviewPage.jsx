@@ -141,10 +141,9 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
               const isActive  = m.ym === filterMonth;
               const incH      = (m.income              / chartBarMax) * 100;
               const expH      = (m.expenses             / chartBarMax) * 100;
-              const invH      = (m.invested             / chartBarMax) * 100;
-              const combinedH = expH + invH;
+              const combinedH = (m.expenses + m.invested) / chartBarMax * 100;
               const expFrac   = combinedH > 0 ? expH / combinedH : 1;
-              const invFrac   = combinedH > 0 ? invH / combinedH : 0;
+              const invFrac   = combinedH > 0 ? 1 - expFrac : 0;
               const isLoading = !dashboardCache[m.ym]?.data && dashboardCache[m.ym]?.loading;
               return (
                 <button
@@ -237,34 +236,31 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
           {/* Summary bars */}
           <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Summary</h2>
-            {[
-              { label: "💰 Income",   val: income,     color: "#1D9E75" },
-              { label: "💳 Expenses", val: expense,    color: "#D85A30" },
-              ...(investment > 0
-                ? [{ label: "📈 Invested", val: investment, color: "#378ADD" }]
-                : []),
-            ].map(({ label, val, color }) => {
+            {(() => {
               const summaryMax = Math.max(income, expense, investment, 1);
-              return (
+              return [
+                { label: "💰 Income",   val: income,     color: "#1D9E75" },
+                { label: "💳 Expenses", val: expense,    color: "#D85A30" },
+                ...(investment > 0
+                  ? [{ label: "📈 Invested", val: investment, color: "#378ADD" }]
+                  : []),
+              ].map(({ label, val, color }) => (
                 <div key={label}>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-sm text-gray-700 dark:text-gray-200">{label}</span>
                     <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{fmt(val)}</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-gray-100 dark:bg-neutral-800 overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${(val / summaryMax) * 100}%`, backgroundColor: color }}
-                    />
+                    <div className="h-full rounded-full" style={{ width: `${(val / summaryMax) * 100}%`, backgroundColor: color }} />
                   </div>
                 </div>
-              );
-            })}
+              ));
+            })()}
           </div>
 
           {/* Expense breakdown — Needs vs Wants */}
           {expense > 0 && (
-            <NecessityBreakdown necessary={necessary} optional={optional} total={expense} currency={currency} />
+            <NecessityBreakdown necessary={necessary} optional={optional} currency={currency} />
           )}
 
           {/* By member — household only */}

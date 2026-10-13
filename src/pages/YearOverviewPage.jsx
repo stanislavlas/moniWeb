@@ -102,11 +102,16 @@ export function YearOverviewPage({ user, showHousehold = false }) {
   const expensesByCategory = yt?.expensesByCategory ?? {};
 
   const scrollerRef = useRef(null);
-  const handleWheel = (e) => {
-    if (!scrollerRef.current) return;
-    e.preventDefault();
-    scrollerRef.current.scrollLeft += e.deltaY + e.deltaX;
-  };
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      el.scrollLeft += e.deltaY + e.deltaX;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-6">
@@ -118,7 +123,7 @@ export function YearOverviewPage({ user, showHousehold = false }) {
       </div>
 
       {/* Year scroller */}
-      <div ref={scrollerRef} onWheel={handleWheel} className="overflow-x-auto thin-scrollbar pb-1">
+      <div ref={scrollerRef} className="overflow-x-auto thin-scrollbar pb-1">
         <div className="flex gap-2 w-max px-1">
           {activeYears.map(y => (
             <button
@@ -154,15 +159,15 @@ export function YearOverviewPage({ user, showHousehold = false }) {
             {/* Summary bars */}
             <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Summary</h2>
-              {[
-                { label: "💰 Income",   val: yearTotals.income,   color: "#1D9E75" },
-                { label: "💳 Expenses", val: yearTotals.expenses, color: "#D85A30" },
-                ...(yearTotals.invested > 0
-                  ? [{ label: "📈 Invested", val: yearTotals.invested, color: "#378ADD" }]
-                  : []),
-              ].map(({ label, val, color }) => {
+              {(() => {
                 const summaryMax = Math.max(yearTotals.income, yearTotals.expenses, yearTotals.invested, 1);
-                return (
+                return [
+                  { label: "💰 Income",   val: yearTotals.income,   color: "#1D9E75" },
+                  { label: "💳 Expenses", val: yearTotals.expenses, color: "#D85A30" },
+                  ...(yearTotals.invested > 0
+                    ? [{ label: "📈 Invested", val: yearTotals.invested, color: "#378ADD" }]
+                    : []),
+                ].map(({ label, val, color }) => (
                   <div key={label}>
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-sm text-gray-700 dark:text-gray-200">{label}</span>
@@ -172,13 +177,13 @@ export function YearOverviewPage({ user, showHousehold = false }) {
                       <div className="h-full rounded-full" style={{ width: `${(val / summaryMax) * 100}%`, backgroundColor: color }} />
                     </div>
                   </div>
-                );
-              })}
+                ));
+              })()}
             </div>
 
             {/* Expense breakdown */}
             {yearTotals.expenses > 0 && (
-              <NecessityBreakdown necessary={yearNecessary} optional={yearOptional} total={yearTotals.expenses} currency={currency} />
+              <NecessityBreakdown necessary={yearNecessary} optional={yearOptional} currency={currency} />
             )}
 
             {/* By member — household mode only */}

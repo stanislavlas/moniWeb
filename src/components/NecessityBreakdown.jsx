@@ -2,9 +2,9 @@ import { formatCurrency } from "../utils/money.js";
 
 /**
  * Necessary / Optional expense breakdown as summary bars.
- * Props: { necessary, optional, total, currency }
+ * Props: { necessary, optional, currency }
  */
-export function NecessityBreakdown({ necessary, optional, total, currency }) {
+export function NecessityBreakdown({ necessary, optional, currency }) {
   const fmt = (v) => formatCurrency(v, currency);
   const barMax = Math.max(necessary, optional, 1);
 
