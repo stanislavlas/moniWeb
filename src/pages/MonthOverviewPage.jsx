@@ -77,13 +77,19 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
   }); // no dep array — runs after every render until measured
   const barW = Math.floor((colW - BAR_GAP) / 2);
 
-  // Scroll handler: horizontal only, suppress vertical page scroll
+  // Scroll handler: horizontal only, suppress vertical page scroll.
+  // Must be registered as non-passive so preventDefault() is respected.
   const chartScrollRef = useRef(null);
-  const handleChartWheel = (e) => {
-    if (!chartScrollRef.current) return;
-    e.preventDefault();
-    chartScrollRef.current.scrollLeft += e.deltaY + e.deltaX;
-  };
+  useEffect(() => {
+    const el = chartScrollRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      el.scrollLeft += e.deltaY + e.deltaX;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   // Selected month detail
   const income     = parseFloat(dash?.totalIncome?.value      ?? 0);
@@ -124,7 +130,6 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
       <div ref={cardRef} className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4">
         <div
           ref={chartScrollRef}
-          onWheel={handleChartWheel}
           className="thin-scrollbar"
           style={{ overflowX: "auto", overflowY: "hidden" }}
         >
