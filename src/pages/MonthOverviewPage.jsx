@@ -1,24 +1,28 @@
-import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useCategoriesContext } from "../contexts/CategoriesContext.jsx";
 import { useDashboard } from "../hooks/useDashboard.js";
-import { useMonthScrollerCount } from "../hooks/useMonthScrollerCount.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 import { NecessityBreakdown } from "../components/NecessityBreakdown.jsx";
 import { MONTHS_SHORT, formatCurrency, formatYearMonth } from "../utils/money.js";
-import { getRecentDashboard } from "../services/dashboard.js";
-import { entryEvents } from "../utils/entryEvents.js";
+
+// How many months to show initially and load per "Show more"
+const INITIAL_LIMIT = 12;
 
 export function MonthOverviewPage({ user, showHousehold = false }) {
-  // Use UTC month to stay consistent with recentMonths() in money.js (which uses getUTCMonth)
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const { categories, colorMap } = useCategoriesContext();
 
-  const scrollerRef   = useRef(null);
-  const initialLimit  = useMonthScrollerCount(scrollerRef);
-  const { activeMonths, dashboardCache, fetchDashboard, hasMoreMonths, loadMoreMonths } = useDashboard(showHousehold, initialLimit);
+  const { activeMonths, dashboardCache, fetchDashboard, hasMoreMonths, loadMoreMonths } =
+    useDashboard(showHousehold, INITIAL_LIMIT);
 
+  // Fetch the selected month's detail on demand
   useEffect(() => { fetchDashboard(filterMonth); }, [filterMonth, fetchDashboard]);
+
+  // Pre-fetch all visible months so bars have data
+  useEffect(() => {
+    activeMonths.forEach(ym => fetchDashboard(ym));
+  }, [activeMonths, fetchDashboard]);
 
   const currentData = dashboardCache[filterMonth] ?? { data: null, loading: true, error: null };
   const dash    = currentData.data;
@@ -29,15 +33,33 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
   const currency   = user?.currency ?? "EUR";
   const fmt        = (v) => formatCurrency(v, currency);
 
-  // Pre-computed totals from the API — no client-side summation needed
-  const income     = parseFloat(dash?.totalIncome?.value     ?? 0);
-  const expense    = parseFloat(dash?.totalExpenses?.value   ?? 0);
+  // Per-month totals for the bar chart, derived from dashboardCache
+  const chartMonths = useMemo(() =>
+    activeMonths.map(ym => {
+      const d = dashboardCache[ym]?.data;
+      return {
+        ym,
+        month: MONTHS_SHORT[parseInt(ym.slice(5, 7), 10) - 1],
+        year:  ym.slice(0, 4),
+        income:   parseFloat(d?.totalIncome?.value      ?? 0),
+        expenses: parseFloat(d?.totalExpenses?.value    ?? 0),
+        invested: parseFloat(d?.totalInvestments?.value ?? 0),
+      };
+    }),
+  [activeMonths, dashboardCache]);
+
+  const chartBarMax = useMemo(() =>
+    Math.max(...chartMonths.map(m => Math.max(m.income, m.expenses + m.invested)), 1),
+  [chartMonths]);
+
+  // Selected month detail
+  const income     = parseFloat(dash?.totalIncome?.value      ?? 0);
+  const expense    = parseFloat(dash?.totalExpenses?.value    ?? 0);
   const investment = parseFloat(dash?.totalInvestments?.value ?? 0);
-  const balance    = parseFloat(dash?.savedAmount?.value     ?? 0);
+  const balance    = parseFloat(dash?.savedAmount?.value      ?? 0);
   const necessary  = parseFloat(dash?.necessaryVsOptional?.necessary?.value ?? 0);
   const optional   = parseFloat(dash?.necessaryVsOptional?.optional?.value  ?? 0);
 
-  // Category breakdown from API
   const catBreakdown = dash?.expensesByCategory
     ? Object.entries(dash.expensesByCategory)
         .map(([catId, amount]) => {
@@ -52,63 +74,16 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
         .slice(0, 10)
     : [];
 
-  // memberBreakdown is pre-computed by the API in household mode; null in personal mode
   const memberBreakdown = dash?.memberBreakdown ?? [];
+  const catMax          = catBreakdown[0]?.total || 1;
+  const hasEntries      = income > 0 || expense > 0 || investment > 0;
 
-  const catMax    = catBreakdown[0]?.total || 1;
-  const hasEntries = income > 0 || expense > 0 || investment > 0;
-
-  // ── 12-month bar chart ────────────────────────────────────────────────────
-  // Fetch the rolling 12-month overview once; invalidate on entry mutations.
-  const [chartData, setChartData] = useState(null);
-  const chartFetchedRef = useRef(false);
-
-  const fetchChart = useCallback((force = false) => {
-    if (!force && chartFetchedRef.current) return;
-    chartFetchedRef.current = true;
-    let cancelled = false;
-    getRecentDashboard(12, showHousehold)
-      .then(data => { if (!cancelled) setChartData(data); })
-      .catch(() => { chartFetchedRef.current = false; }); // allow retry
-    return () => { cancelled = true; };
-  }, [showHousehold]);
-
-  // Fetch on mount and when household changes
-  useEffect(() => {
-    chartFetchedRef.current = false;
-    setChartData(null);
-    const cancel = fetchChart(true);
-    return cancel;
-  }, [showHousehold]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Invalidate chart on entry mutations
-  useEffect(() => {
-    return entryEvents.subscribe(() => {
-      chartFetchedRef.current = false;
-      fetchChart(true);
-    });
-  }, [fetchChart]);
-
-  // Build sorted month array from chart response
-  const chartMonths = useMemo(() => {
-    if (!chartData?.months) return [];
-    return Object.entries(chartData.months).map(([ym, m]) => ({
-      ym,
-      month: MONTHS_SHORT[parseInt(ym.slice(5, 7), 10) - 1],
-      income:   parseFloat(m?.totalIncome?.value      ?? 0),
-      expenses: parseFloat(m?.totalExpenses?.value    ?? 0),
-      invested: parseFloat(m?.totalInvestments?.value ?? 0),
-    }));
-  }, [chartData]);
-
-  const chartBarMax = useMemo(() =>
-    Math.max(...chartMonths.map(m => Math.max(m.income, m.expenses + m.invested)), 1),
-  [chartMonths]);
-
-  const handleWheel = (e) => {
-    if (!scrollerRef.current) return;
+  // Horizontal scroll for the chart
+  const chartScrollRef = useRef(null);
+  const handleChartWheel = (e) => {
+    if (!chartScrollRef.current) return;
     e.preventDefault();
-    scrollerRef.current.scrollLeft += e.deltaY + e.deltaX;
+    chartScrollRef.current.scrollLeft += e.deltaY + e.deltaX;
   };
 
   return (
@@ -120,95 +95,89 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
         <h1 className="text-xl font-bold">{monthLabel}</h1>
       </div>
 
-      {/* 12-month bar chart — replaces SummaryPills */}
+      {/* Scrollable bar chart — replaces both the old chart and the month scroller */}
       <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4">
-        {chartMonths.length === 0 ? (
-          <div className="flex justify-center py-6"><Spinner size={6} /></div>
-        ) : (
-          <>
-            <div className="flex items-end gap-0.5" style={{ height: "80px" }}>
-              {chartMonths.map((m) => {
-                const isActive  = m.ym === filterMonth;
-                const incH      = (m.income              / chartBarMax) * 100;
-                const expH      = (m.expenses             / chartBarMax) * 100;
-                const invH      = (m.invested             / chartBarMax) * 100;
-                const combinedH = expH + invH;
-                const expFrac   = combinedH > 0 ? expH / combinedH : 1;
-                const invFrac   = combinedH > 0 ? invH / combinedH : 0;
-                return (
-                  <button
-                    key={m.ym}
-                    onClick={() => setFilterMonth(m.ym)}
-                    className="flex-1 flex flex-col items-center"
-                  >
-                    <div className="w-full flex items-end gap-[1px]" style={{ height: "64px" }}>
-                      {/* Income bar */}
-                      <div style={{ flex: 1, height: `${incH}%`, backgroundColor: "#1D9E75", opacity: isActive ? 1 : 0.3, borderRadius: "2px 2px 0 0", minHeight: m.income > 0 ? "2px" : "0" }} />
-                      {/* Expenses + Invested stacked bar */}
-                      <div style={{ flex: 1, height: `${combinedH}%`, opacity: isActive ? 1 : 0.3, borderRadius: "2px 2px 0 0", overflow: "hidden", minHeight: (m.expenses + m.invested) > 0 ? "2px" : "0", display: "flex", flexDirection: "column" }}>
-                        {m.invested > 0 && <div style={{ flex: invFrac, backgroundColor: "#378ADD" }} />}
-                        <div style={{ flex: expFrac, backgroundColor: "#D85A30" }} />
-                      </div>
-                    </div>
-                    <span className={`text-[9px] font-medium mt-1 ${isActive ? "text-gray-800 dark:text-gray-100" : "text-gray-400"}`}>
-                      {m.month}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            {/* Legend */}
-            <div className="flex gap-4 mt-3 justify-center">
-              {[
-                { color: "#1D9E75", label: "Income" },
-                { color: "#D85A30", label: "Expenses+Invested", secondColor: "#378ADD" },
-              ].map(l => (
-                <div key={l.label} className="flex items-center gap-1.5">
-                  {l.secondColor ? (
-                    <div className="w-3 h-2 rounded-sm overflow-hidden flex flex-col">
-                      <div className="flex-1" style={{ backgroundColor: l.secondColor }} />
-                      <div className="flex-[2]" style={{ backgroundColor: l.color }} />
-                    </div>
-                  ) : (
-                    <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: l.color }} />
-                  )}
-                  <span className="text-[11px] text-gray-400">{l.label}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+        <div
+          ref={chartScrollRef}
+          onWheel={handleChartWheel}
+          className="overflow-x-auto thin-scrollbar"
+        >
+          {/* min-width keeps bars a fixed narrow size regardless of month count */}
+          <div className="flex items-end gap-1" style={{ height: "80px", minWidth: `${(chartMonths.length + (hasMoreMonths ? 1 : 0)) * 28}px` }}>
+            {chartMonths.map((m) => {
+              const isActive  = m.ym === filterMonth;
+              const incH      = (m.income              / chartBarMax) * 100;
+              const expH      = (m.expenses             / chartBarMax) * 100;
+              const invH      = (m.invested             / chartBarMax) * 100;
+              const combinedH = expH + invH;
+              const expFrac   = combinedH > 0 ? expH / combinedH : 1;
+              const invFrac   = combinedH > 0 ? invH / combinedH : 0;
+              const isLoading = !dashboardCache[m.ym]?.data && dashboardCache[m.ym]?.loading;
+              return (
+                <button
+                  key={m.ym}
+                  onClick={() => setFilterMonth(m.ym)}
+                  className="flex flex-col items-center shrink-0"
+                  style={{ width: "20px" }}
+                >
+                  <div className="w-full flex items-end gap-[1px]" style={{ height: "64px" }}>
+                    {isLoading ? (
+                      <div className="w-full h-1 rounded-sm bg-gray-100 dark:bg-neutral-800 self-end" />
+                    ) : (
+                      <>
+                        {/* Income bar */}
+                        <div style={{ flex: 1, height: `${incH}%`, backgroundColor: "#1D9E75", opacity: isActive ? 1 : 0.35, borderRadius: "2px 2px 0 0", minHeight: m.income > 0 ? "2px" : "0" }} />
+                        {/* Expenses + Invested stacked bar */}
+                        <div style={{ flex: 1, height: `${combinedH}%`, opacity: isActive ? 1 : 0.35, borderRadius: "2px 2px 0 0", overflow: "hidden", minHeight: (m.expenses + m.invested) > 0 ? "2px" : "0", display: "flex", flexDirection: "column" }}>
+                          {m.invested > 0 && <div style={{ flex: invFrac, backgroundColor: "#378ADD" }} />}
+                          <div style={{ flex: expFrac, backgroundColor: "#D85A30" }} />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <span className={`text-[8px] font-medium mt-1 leading-none ${isActive ? "text-gray-800 dark:text-gray-100" : "text-gray-400"}`}>
+                    {m.month}
+                  </span>
+                </button>
+              );
+            })}
 
-      {/* Month scroller — width drives visible count via useMonthScrollerCount */}
-      <div ref={scrollerRef} onWheel={handleWheel} className="overflow-x-auto thin-scrollbar pb-1">
-        <div className="flex gap-2 w-max px-1">
-          {activeMonths.map(m => {
-            const [y, mo] = m.split("-");
-            const isActive = m === filterMonth;
-            return (
+            {/* Show more column */}
+            {hasMoreMonths && (
               <button
-                key={m}
-                onClick={() => setFilterMonth(m)}
-                className={`flex flex-col items-center px-3 py-2 rounded-xl border transition-colors ${
-                  isActive
-                    ? "bg-brand-green border-brand-green text-white"
-                    : "bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-700 text-gray-700 dark:text-gray-200"
-                }`}
+                onClick={loadMoreMonths}
+                className="flex flex-col items-center justify-end shrink-0 pb-0.5"
+                style={{ width: "20px", height: "80px" }}
               >
-                <span className="text-xs font-bold leading-tight">{MONTHS_SHORT[parseInt(mo, 10) - 1]}</span>
-                <span className={`text-[10px] font-medium leading-tight mt-0.5 ${isActive ? "text-white/80" : "text-gray-400"}`}>{y}</span>
+                <div className="flex flex-col gap-[3px] items-center mb-1">
+                  <div className="w-[3px] h-[3px] rounded-full bg-gray-300 dark:bg-neutral-600" />
+                  <div className="w-[3px] h-[3px] rounded-full bg-gray-300 dark:bg-neutral-600" />
+                  <div className="w-[3px] h-[3px] rounded-full bg-gray-300 dark:bg-neutral-600" />
+                </div>
+                <span className="text-[8px] text-gray-400 leading-none">more</span>
               </button>
-            );
-          })}
-          {hasMoreMonths && (
-            <button
-              onClick={loadMoreMonths}
-              className="flex flex-col items-center justify-center px-3 py-2 rounded-xl border border-dashed border-gray-300 dark:border-neutral-600 text-gray-400 dark:text-neutral-500 text-xs font-medium whitespace-nowrap transition-colors hover:border-gray-400 dark:hover:border-neutral-400 hover:text-gray-500 dark:hover:text-neutral-300"
-            >
-              Show more
-            </button>
-          )}
+            )}
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div className="flex gap-4 mt-3 justify-center">
+          {[
+            { color: "#1D9E75", label: "Income" },
+            { color: "#D85A30", label: "Expenses+Invested", secondColor: "#378ADD" },
+          ].map(l => (
+            <div key={l.label} className="flex items-center gap-1.5">
+              {l.secondColor ? (
+                <div className="w-3 h-2 rounded-sm overflow-hidden flex flex-col">
+                  <div className="flex-1" style={{ backgroundColor: l.secondColor }} />
+                  <div className="flex-[2]" style={{ backgroundColor: l.color }} />
+                </div>
+              ) : (
+                <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: l.color }} />
+              )}
+              <span className="text-[11px] text-gray-400">{l.label}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -216,7 +185,6 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
 
       {loading && <div className="flex justify-center py-12"><Spinner size={10} /></div>}
 
-      {/* Only render content when not loading AND either data exists or there is no error */}
       {!loading && (!error || dash) && (
         <>
           {/* Balance */}

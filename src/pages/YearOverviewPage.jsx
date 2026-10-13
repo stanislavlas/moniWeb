@@ -163,6 +163,26 @@ export function YearOverviewPage({ user, showHousehold = false }) {
               </div>
             )}
 
+            {/* By member — household mode only */}
+            {yearMembers.length > 0 && showHousehold && (
+              <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">By member</h2>
+                {yearMembers.map(m => (
+                  <div key={m.userId} className="flex items-center gap-3 py-1">
+                    <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-green-700 dark:text-green-400">{(m.name ?? "?").charAt(0).toUpperCase()}</span>
+                    </div>
+                    <span className="text-sm text-gray-700 dark:text-gray-200 flex-1">{m.name}</span>
+                    <div className="flex flex-col items-end">
+                      {parseFloat(m.totalIncome?.value      ?? 0) > 0 && <span className="text-xs font-mono text-brand-green">+{formatCurrency(parseFloat(m.totalIncome?.value ?? 0), currency)}</span>}
+                      {parseFloat(m.totalExpenses?.value    ?? 0) > 0 && <span className="text-xs font-mono text-brand-red">−{formatCurrency(parseFloat(m.totalExpenses?.value ?? 0), currency)}</span>}
+                      {parseFloat(m.totalInvestments?.value ?? 0) > 0 && <span className="text-xs font-mono text-brand-blue">↗{formatCurrency(parseFloat(m.totalInvestments?.value ?? 0), currency)}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* By category */}
             {Object.keys(expensesByCategory).length > 0 && (
               <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
@@ -192,26 +212,6 @@ export function YearOverviewPage({ user, showHousehold = false }) {
                     );
                   });
                 })()}
-              </div>
-            )}
-
-            {/* By member — household mode only */}
-            {yearMembers.length > 0 && showHousehold && (
-              <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">By member</h2>
-                {yearMembers.map(m => (
-                  <div key={m.userId} className="flex items-center gap-3 py-1">
-                    <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center shrink-0">
-                      <span className="text-xs font-bold text-green-700 dark:text-green-400">{(m.name ?? "?").charAt(0).toUpperCase()}</span>
-                    </div>
-                    <span className="text-sm text-gray-700 dark:text-gray-200 flex-1">{m.name}</span>
-                    <div className="flex flex-col items-end">
-                      {parseFloat(m.totalIncome?.value      ?? 0) > 0 && <span className="text-xs font-mono text-brand-green">+{formatCurrency(parseFloat(m.totalIncome?.value ?? 0), currency)}</span>}
-                      {parseFloat(m.totalExpenses?.value    ?? 0) > 0 && <span className="text-xs font-mono text-brand-red">−{formatCurrency(parseFloat(m.totalExpenses?.value ?? 0), currency)}</span>}
-                      {parseFloat(m.totalInvestments?.value ?? 0) > 0 && <span className="text-xs font-mono text-brand-blue">↗{formatCurrency(parseFloat(m.totalInvestments?.value ?? 0), currency)}</span>}
-                    </div>
-                  </div>
-                ))}
               </div>
             )}
           </>
