@@ -6,8 +6,11 @@ import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 import { NecessityBreakdown } from "../components/NecessityBreakdown.jsx";
 import { MONTHS_SHORT, formatCurrency, formatYearMonth } from "../utils/money.js";
 
-// How many months to show initially and load per "Show more"
 const INITIAL_LIMIT = 12;
+// Each column: 2 bars + 1px gap between them. Gap between columns.
+const COL_GAP   = 4; // px between columns
+const BAR_GAP   = 1; // px between the two bars inside a column
+const MIN_BAR_W = 4; // px — minimum width of each individual bar
 
 export function MonthOverviewPage({ user, showHousehold = false }) {
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
@@ -16,7 +19,6 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
   const { activeMonths, dashboardCache, fetchDashboard, hasMoreMonths, loadMoreMonths } =
     useDashboard(showHousehold, INITIAL_LIMIT);
 
-  // Fetch the selected month's detail on demand
   useEffect(() => { fetchDashboard(filterMonth); }, [filterMonth, fetchDashboard]);
 
   // Pre-fetch all visible months so bars have data
@@ -33,14 +35,14 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
   const currency   = user?.currency ?? "EUR";
   const fmt        = (v) => formatCurrency(v, currency);
 
-  // Per-month totals for the bar chart, derived from dashboardCache
+  // Per-month totals for the bar chart
   const chartMonths = useMemo(() =>
     activeMonths.map(ym => {
       const d = dashboardCache[ym]?.data;
       return {
         ym,
-        month: MONTHS_SHORT[parseInt(ym.slice(5, 7), 10) - 1],
-        year:  ym.slice(0, 4),
+        month:    MONTHS_SHORT[parseInt(ym.slice(5, 7), 10) - 1],
+        year2:    ym.slice(2, 4), // 2-digit year e.g. "25"
         income:   parseFloat(d?.totalIncome?.value      ?? 0),
         expenses: parseFloat(d?.totalExpenses?.value    ?? 0),
         invested: parseFloat(d?.totalInvestments?.value ?? 0),
@@ -51,6 +53,46 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
   const chartBarMax = useMemo(() =>
     Math.max(...chartMonths.map(m => Math.max(m.income, m.expenses + m.invested)), 1),
   [chartMonths]);
+
+  // Measure the card's inner width so we can fill it with evenly-sized columns
+  const cardRef    = useRef(null);
+  const [cardWidth, setCardWidth] = useState(0);
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setCardWidth(entry.contentRect.width));
+    ro.observe(el);
+    setCardWidth(el.getBoundingClientRect().width);
+    return () => ro.disconnect();
+  }, []);
+
+  // Column width = fill the card exactly for the visible count, respect minimum
+  const colCount = chartMonths.length;
+  // barW: width of each individual bar inside a column
+  const barW = colCount > 0 && cardWidth > 0
+    ? Math.max(MIN_BAR_W, Math.floor((cardWidth - COL_GAP * (colCount - 1) - BAR_GAP * colCount) / (colCount * 2)))
+    : MIN_BAR_W;
+  const colW = barW * 2 + BAR_GAP; // total column width
+
+  // Sentinel at end of list — when it enters the viewport, load more months
+  const sentinelRef = useRef(null);
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMoreMonths) return;
+    const io = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) loadMoreMonths(); },
+      { root: null, threshold: 0.1 }
+    );
+    io.observe(sentinelRef.current);
+    return () => io.disconnect();
+  }, [hasMoreMonths, loadMoreMonths]);
+
+  // Scroll handler: horizontal only, suppress vertical page scroll
+  const chartScrollRef = useRef(null);
+  const handleChartWheel = (e) => {
+    if (!chartScrollRef.current) return;
+    e.preventDefault();
+    chartScrollRef.current.scrollLeft += e.deltaY + e.deltaX;
+  };
 
   // Selected month detail
   const income     = parseFloat(dash?.totalIncome?.value      ?? 0);
@@ -78,14 +120,6 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
   const catMax          = catBreakdown[0]?.total || 1;
   const hasEntries      = income > 0 || expense > 0 || investment > 0;
 
-  // Horizontal scroll for the chart
-  const chartScrollRef = useRef(null);
-  const handleChartWheel = (e) => {
-    if (!chartScrollRef.current) return;
-    e.preventDefault();
-    chartScrollRef.current.scrollLeft += e.deltaY + e.deltaX;
-  };
-
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6 space-y-6">
 
@@ -95,15 +129,24 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
         <h1 className="text-xl font-bold">{monthLabel}</h1>
       </div>
 
-      {/* Scrollable bar chart — replaces both the old chart and the month scroller */}
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4">
+      {/* Bar chart card */}
+      <div ref={cardRef} className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4">
         <div
           ref={chartScrollRef}
           onWheel={handleChartWheel}
-          className="overflow-x-auto thin-scrollbar"
+          className="thin-scrollbar"
+          style={{ overflowX: "auto", overflowY: "hidden" }}
         >
-          {/* min-width keeps bars a fixed narrow size regardless of month count */}
-          <div className="flex items-end gap-1" style={{ height: "80px", minWidth: `${(chartMonths.length + (hasMoreMonths ? 1 : 0)) * 28}px` }}>
+          {/* Inner row: columns sized to fill card, or wider when scrolling */}
+          <div
+            className="flex items-end"
+            style={{
+              gap: `${COL_GAP}px`,
+              height: "80px",
+              // When all columns fit, no minWidth needed; when they don't, let them overflow naturally
+              minWidth: colCount > 0 ? `${colCount * (colW + COL_GAP) - COL_GAP}px` : undefined,
+            }}
+          >
             {chartMonths.map((m) => {
               const isActive  = m.ym === filterMonth;
               const incH      = (m.income              / chartBarMax) * 100;
@@ -118,44 +161,39 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
                   key={m.ym}
                   onClick={() => setFilterMonth(m.ym)}
                   className="flex flex-col items-center shrink-0"
-                  style={{ width: "20px" }}
+                  style={{ width: `${colW}px` }}
                 >
-                  <div className="w-full flex items-end gap-[1px]" style={{ height: "64px" }}>
+                  <div className="w-full flex items-end" style={{ height: "60px", gap: `${BAR_GAP}px` }}>
                     {isLoading ? (
-                      <div className="w-full h-1 rounded-sm bg-gray-100 dark:bg-neutral-800 self-end" />
+                      <div className="rounded-sm bg-gray-100 dark:bg-neutral-800 self-end" style={{ width: `${barW}px`, height: "3px" }} />
                     ) : (
                       <>
                         {/* Income bar */}
-                        <div style={{ flex: 1, height: `${incH}%`, backgroundColor: "#1D9E75", opacity: isActive ? 1 : 0.35, borderRadius: "2px 2px 0 0", minHeight: m.income > 0 ? "2px" : "0" }} />
+                        <div style={{ width: `${barW}px`, height: `${incH}%`, backgroundColor: "#1D9E75", opacity: isActive ? 1 : 0.35, borderRadius: "2px 2px 0 0", minHeight: m.income > 0 ? "2px" : "0", flexShrink: 0 }} />
                         {/* Expenses + Invested stacked bar */}
-                        <div style={{ flex: 1, height: `${combinedH}%`, opacity: isActive ? 1 : 0.35, borderRadius: "2px 2px 0 0", overflow: "hidden", minHeight: (m.expenses + m.invested) > 0 ? "2px" : "0", display: "flex", flexDirection: "column" }}>
+                        <div style={{ width: `${barW}px`, height: `${combinedH}%`, opacity: isActive ? 1 : 0.35, borderRadius: "2px 2px 0 0", overflow: "hidden", minHeight: (m.expenses + m.invested) > 0 ? "2px" : "0", display: "flex", flexDirection: "column", flexShrink: 0 }}>
                           {m.invested > 0 && <div style={{ flex: invFrac, backgroundColor: "#378ADD" }} />}
                           <div style={{ flex: expFrac, backgroundColor: "#D85A30" }} />
                         </div>
                       </>
                     )}
                   </div>
-                  <span className={`text-[8px] font-medium mt-1 leading-none ${isActive ? "text-gray-800 dark:text-gray-100" : "text-gray-400"}`}>
-                    {m.month}
-                  </span>
+                  {/* Label: month + 2-digit year */}
+                  <div className="flex flex-col items-center mt-1" style={{ gap: "1px" }}>
+                    <span className={`leading-none ${isActive ? "text-gray-800 dark:text-gray-100" : "text-gray-400"}`} style={{ fontSize: "7px", fontWeight: 600 }}>
+                      {m.month}
+                    </span>
+                    <span className="leading-none text-gray-400" style={{ fontSize: "7px" }}>
+                      {m.year2}
+                    </span>
+                  </div>
                 </button>
               );
             })}
 
-            {/* Show more column */}
+            {/* Invisible sentinel — scrolling to it triggers loadMoreMonths */}
             {hasMoreMonths && (
-              <button
-                onClick={loadMoreMonths}
-                className="flex flex-col items-center justify-end shrink-0 pb-0.5"
-                style={{ width: "20px", height: "80px" }}
-              >
-                <div className="flex flex-col gap-[3px] items-center mb-1">
-                  <div className="w-[3px] h-[3px] rounded-full bg-gray-300 dark:bg-neutral-600" />
-                  <div className="w-[3px] h-[3px] rounded-full bg-gray-300 dark:bg-neutral-600" />
-                  <div className="w-[3px] h-[3px] rounded-full bg-gray-300 dark:bg-neutral-600" />
-                </div>
-                <span className="text-[8px] text-gray-400 leading-none">more</span>
-              </button>
+              <div ref={sentinelRef} className="shrink-0" style={{ width: "1px", height: "1px" }} />
             )}
           </div>
         </div>
