@@ -7,10 +7,19 @@ import { NecessityBreakdown } from "../components/NecessityBreakdown.jsx";
 import { MONTHS_SHORT, formatCurrency, formatYearMonth } from "../utils/money.js";
 
 const INITIAL_LIMIT = 12;
-// Each column: 2 bars + 1px gap between them. Gap between columns.
-const COL_GAP   = 4; // px between columns
-const BAR_GAP   = 1; // px between the two bars inside a column
-const MIN_BAR_W = 4; // px — minimum width of each individual bar
+const BAR_GAP = 1; // px between the two bars inside a column
+const COL_GAP = 5; // px between columns
+// Fallback column width before measurement (matches ~12 cols in a 320px card)
+const COL_W_FALLBACK = 13;
+
+function colWFromWidth(containerWidth, colCount) {
+  // Fill the container exactly with colCount columns
+  // colW = (containerWidth - COL_GAP * (colCount - 1)) / colCount
+  // barW = (colW - BAR_GAP) / 2  — must be at least 4px
+  const colW = (containerWidth - COL_GAP * (colCount - 1)) / colCount;
+  const barW = Math.max(4, Math.floor((colW - BAR_GAP) / 2));
+  return barW * 2 + BAR_GAP;
+}
 
 export function MonthOverviewPage({ user, showHousehold = false }) {
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
@@ -54,37 +63,19 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
     Math.max(...chartMonths.map(m => Math.max(m.income, m.expenses + m.invested)), 1),
   [chartMonths]);
 
-  // Measure the card's inner width so we can fill it with evenly-sized columns
-  const cardRef    = useRef(null);
-  const [cardWidth, setCardWidth] = useState(0);
+  // Measure container width once on first render — fixed after that
+  const cardRef      = useRef(null);
+  const [colW, setColW] = useState(COL_W_FALLBACK);
+  const measuredRef  = useRef(false);
   useEffect(() => {
-    const el = cardRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => setCardWidth(entry.contentRect.width));
-    ro.observe(el);
-    setCardWidth(el.getBoundingClientRect().width);
-    return () => ro.disconnect();
-  }, []);
-
-  // Column width = fill the card exactly for the visible count, respect minimum
-  const colCount = chartMonths.length;
-  // barW: width of each individual bar inside a column
-  const barW = colCount > 0 && cardWidth > 0
-    ? Math.max(MIN_BAR_W, Math.floor((cardWidth - COL_GAP * (colCount - 1) - BAR_GAP * colCount) / (colCount * 2)))
-    : MIN_BAR_W;
-  const colW = barW * 2 + BAR_GAP; // total column width
-
-  // Sentinel at end of list — when it enters the viewport, load more months
-  const sentinelRef = useRef(null);
-  useEffect(() => {
-    if (!sentinelRef.current || !hasMoreMonths) return;
-    const io = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) loadMoreMonths(); },
-      { root: null, threshold: 0.1 }
-    );
-    io.observe(sentinelRef.current);
-    return () => io.disconnect();
-  }, [hasMoreMonths, loadMoreMonths]);
+    if (measuredRef.current || !cardRef.current) return;
+    const w = cardRef.current.getBoundingClientRect().width;
+    if (w > 0) {
+      measuredRef.current = true;
+      setColW(colWFromWidth(w, INITIAL_LIMIT));
+    }
+  }); // no dep array — runs after every render until measured
+  const barW = Math.floor((colW - BAR_GAP) / 2);
 
   // Scroll handler: horizontal only, suppress vertical page scroll
   const chartScrollRef = useRef(null);
@@ -137,15 +128,9 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
           className="thin-scrollbar"
           style={{ overflowX: "auto", overflowY: "hidden" }}
         >
-          {/* Inner row: columns sized to fill card, or wider when scrolling */}
           <div
             className="flex items-end"
-            style={{
-              gap: `${COL_GAP}px`,
-              height: "80px",
-              // When all columns fit, no minWidth needed; when they don't, let them overflow naturally
-              minWidth: colCount > 0 ? `${colCount * (colW + COL_GAP) - COL_GAP}px` : undefined,
-            }}
+            style={{ gap: `${COL_GAP}px`, height: "80px" }}
           >
             {chartMonths.map((m) => {
               const isActive  = m.ym === filterMonth;
@@ -191,9 +176,19 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
               );
             })}
 
-            {/* Invisible sentinel — scrolling to it triggers loadMoreMonths */}
+            {/* Show more button as final column */}
             {hasMoreMonths && (
-              <div ref={sentinelRef} className="shrink-0" style={{ width: "1px", height: "1px" }} />
+              <button
+                onClick={loadMoreMonths}
+                className="flex flex-col items-center justify-end shrink-0 pb-[1px]"
+                style={{ width: `${colW}px`, height: "80px" }}
+              >
+                <div className="flex flex-col gap-[3px] items-center">
+                  <div className="w-[3px] h-[3px] rounded-full bg-gray-300 dark:bg-neutral-600" />
+                  <div className="w-[3px] h-[3px] rounded-full bg-gray-300 dark:bg-neutral-600" />
+                  <div className="w-[3px] h-[3px] rounded-full bg-gray-300 dark:bg-neutral-600" />
+                </div>
+              </button>
             )}
           </div>
         </div>
