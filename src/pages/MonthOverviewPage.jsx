@@ -264,10 +264,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
 
           {/* Expense breakdown — Needs vs Wants */}
           {expense > 0 && (
-            <div className="space-y-2">
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Expense breakdown</h2>
-              <NecessityBreakdown necessary={necessary} optional={optional} total={expense} currency={currency} />
-            </div>
+            <NecessityBreakdown necessary={necessary} optional={optional} total={expense} currency={currency} />
           )}
 
           {/* By member — household only */}

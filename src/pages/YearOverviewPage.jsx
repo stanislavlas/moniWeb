@@ -143,6 +143,14 @@ export function YearOverviewPage({ user, showHousehold = false }) {
       ) : (
         (!error || yearData) && (
           <>
+            {/* Annual balance */}
+            <div className="text-center py-2">
+              <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Annual Balance</p>
+              <p className={`text-4xl sm:text-5xl font-bold font-mono ${yearBalance >= 0 ? "text-brand-green" : "text-brand-red"}`}>
+                {formatCurrency(yearBalance, currency)}
+              </p>
+            </div>
+
             {/* Summary bars */}
             <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Summary</h2>
@@ -168,20 +176,9 @@ export function YearOverviewPage({ user, showHousehold = false }) {
               })}
             </div>
 
-            {/* Annual balance */}
-            <div className="text-center py-2">
-              <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Annual Balance</p>
-              <p className={`text-4xl sm:text-5xl font-bold font-mono ${yearBalance >= 0 ? "text-brand-green" : "text-brand-red"}`}>
-                {formatCurrency(yearBalance, currency)}
-              </p>
-            </div>
-
             {/* Expense breakdown */}
             {yearTotals.expenses > 0 && (
-              <div className="space-y-2">
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Expense breakdown</h2>
-                <NecessityBreakdown necessary={yearNecessary} optional={yearOptional} total={yearTotals.expenses} currency={currency} />
-              </div>
+              <NecessityBreakdown necessary={yearNecessary} optional={yearOptional} total={yearTotals.expenses} currency={currency} />
             )}
 
             {/* By member — household mode only */}
