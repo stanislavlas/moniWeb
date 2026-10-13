@@ -180,7 +180,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
             {hasMoreMonths && (
               <button
                 onClick={loadMoreMonths}
-                className="flex flex-col items-center justify-end shrink-0 pb-[1px]"
+                className="flex flex-col items-center justify-center shrink-0 gap-1"
                 style={{ width: `${colW}px`, height: "80px" }}
               >
                 <div className="flex flex-col gap-[3px] items-center">
@@ -188,6 +188,7 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
                   <div className="w-[3px] h-[3px] rounded-full bg-gray-300 dark:bg-neutral-600" />
                   <div className="w-[3px] h-[3px] rounded-full bg-gray-300 dark:bg-neutral-600" />
                 </div>
+                <span className="text-gray-400 leading-none whitespace-nowrap" style={{ fontSize: "7px" }}>Show more</span>
               </button>
             )}
           </div>
