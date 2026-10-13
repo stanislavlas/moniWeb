@@ -6,7 +6,6 @@ import { useCategoriesContext } from "../contexts/CategoriesContext.jsx";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 import { NecessityBreakdown } from "../components/NecessityBreakdown.jsx";
-import { SummaryPills } from "../components/SummaryPills.jsx";
 import { formatCurrency } from "../utils/money.js";
 
 export function YearOverviewPage({ user, showHousehold = false }) {
@@ -144,8 +143,30 @@ export function YearOverviewPage({ user, showHousehold = false }) {
       ) : (
         (!error || yearData) && (
           <>
-            {/* Annual pills */}
-            <SummaryPills income={yearTotals.income} expense={yearTotals.expenses} investment={yearTotals.invested} currency={currency} />
+            {/* Summary bars */}
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3">
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Summary</h2>
+              {[
+                { label: "💰 Income",   val: yearTotals.income,   color: "#1D9E75" },
+                { label: "💳 Expenses", val: yearTotals.expenses, color: "#D85A30" },
+                ...(yearTotals.invested > 0
+                  ? [{ label: "📈 Invested", val: yearTotals.invested, color: "#378ADD" }]
+                  : []),
+              ].map(({ label, val, color }) => {
+                const summaryMax = Math.max(yearTotals.income, yearTotals.expenses, yearTotals.invested, 1);
+                return (
+                  <div key={label}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm text-gray-700 dark:text-gray-200">{label}</span>
+                      <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{formatCurrency(val, currency)}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-gray-100 dark:bg-neutral-800 overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${(val / summaryMax) * 100}%`, backgroundColor: color }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
             {/* Annual balance */}
             <div className="text-center py-2">
