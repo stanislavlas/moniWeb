@@ -15,9 +15,9 @@ const COL_W_FALLBACK = 13;
 function colWFromWidth(containerWidth, colCount) {
   // Fill the container exactly with colCount columns
   // colW = (containerWidth - COL_GAP * (colCount - 1)) / colCount
-  // barW = (colW - BAR_GAP) / 2  — must be at least 4px
+  // barW = (colW - BAR_GAP) / 2  — must be at least 3px
   const colW = (containerWidth - COL_GAP * (colCount - 1)) / colCount;
-  const barW = Math.max(4, Math.floor((colW - BAR_GAP) / 2));
+  const barW = Math.max(3, Math.floor((colW - BAR_GAP) / 2));
   return barW * 2 + BAR_GAP;
 }
 
@@ -181,12 +181,12 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
               );
             })}
 
-            {/* Show more button as final column */}
+            {/* Show more button as final column — fixed width so label fits on mobile */}
             {hasMoreMonths && (
               <button
                 onClick={loadMoreMonths}
-                className="flex flex-col items-center justify-center shrink-0 gap-1"
-                style={{ width: `${colW}px`, height: "80px" }}
+                className="flex flex-col items-center justify-center shrink-0 gap-1 ml-2"
+                style={{ width: "36px", height: "80px" }}
               >
                 <div className="flex flex-col gap-[3px] items-center">
                   <div className="w-[3px] h-[3px] rounded-full bg-gray-300 dark:bg-neutral-600" />
