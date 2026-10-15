@@ -23,7 +23,6 @@ import { logger } from "../utils/logger.js";
  *     totalInvestments: { value: number, currency: string },
  *     savedAmount: { value: number, currency: string },
  *   }> | null,
- *   householdName:        string | null,
  * }>}
  */
 export function getDashboard(fromDate, toDate, household = false) {
@@ -34,8 +33,7 @@ export function getDashboard(fromDate, toDate, household = false) {
 }
 
 /**
- * Fetch a range-based dashboard with monthly breakdowns.
- * Returns pre-split monthly summaries, totals, and monthly averages.
+ * Fetch a range-based dashboard with totals and monthly averages.
  *
  * @param {string}  fromDate  - YYYY-MM-DD (first day of range, inclusive)
  * @param {string}  toDate    - YYYY-MM-DD (last day of range, inclusive)
