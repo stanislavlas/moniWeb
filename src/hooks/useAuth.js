@@ -24,16 +24,18 @@ export function useAuth() {
   const { loading, error, run: withLoading, clearError } = useAsyncAction();
 
   useEffect(() => {
+    let cancelled = false;
     const stored = getStoredUser();
     if (stored) {
       logger.auth(`Session restored: ${stored.email}`);
       setUser(stored);
       // Fetch fresh profile in the background to sync any changes made on other devices
       apiGetProfile()
-        .then((fresh) => setUser(fresh))
+        .then((fresh) => { if (!cancelled) setUser(fresh); })
         .catch(() => {}); // Non-critical — cached value is still usable
     }
     setReady(true);
+    return () => { cancelled = true; };
   }, []);
 
   // Auto-logout when any authRequest detects an expired/invalid session

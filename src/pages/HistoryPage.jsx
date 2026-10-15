@@ -7,6 +7,7 @@ import { deleteEntry } from "../services/entries.js";
 import { entryEvents } from "../utils/entryEvents.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
+import { CategoryChips } from "../components/CategoryChips.jsx";
 import { getAmount, formatCurrency, formatYearMonth, fromApiNecessity, MONTHS_SHORT } from "../utils/money.js";
 
 // Deterministic per-user color palette derived from userId.
@@ -49,9 +50,10 @@ export function HistoryPage({ showHousehold = false, user }) {
   const [fetchErrorHidden, setFetchErrorHidden] = useState(false);
   const [search, setSearch]           = useState("");
   // Sets of active values — empty means "show all"
-  const [typeFilters, setTypeFilters] = useState(new Set());
-  const [necFilters, setNecFilters]   = useState(new Set());
-  const [userFilters, setUserFilters] = useState(new Set());
+  const [typeFilters, setTypeFilters]     = useState(new Set());
+  const [necFilters, setNecFilters]       = useState(new Set());
+  const [userFilters, setUserFilters]     = useState(new Set());
+  const [categoryFilter, setCategoryFilter] = useState(null); // single category object or null
 
   // Reset dismiss state when the month changes (new fetch, new potential error)
   useEffect(() => { setFetchErrorHidden(false); }, [filterMonth]);
@@ -73,6 +75,7 @@ export function HistoryPage({ showHousehold = false, user }) {
     if (typeFilters.size > 0) list = list.filter(e => typeFilters.has(e.type.toLowerCase()));
     if (necFilters.size  > 0) list = list.filter(e => necFilters.has(fromApiNecessity(e.necessity)));
     if (userFilters.size > 0) list = list.filter(e => userFilters.has(e.userId));
+    if (categoryFilter)       list = list.filter(e => e.categoryId === categoryFilter.categoryId);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(e => {
@@ -81,7 +84,17 @@ export function HistoryPage({ showHousehold = false, user }) {
       });
     }
     return list;
-  }, [entries, typeFilters, necFilters, userFilters, search, categories]);
+  }, [entries, typeFilters, necFilters, userFilters, categoryFilter, search, categories]);
+
+  // Sum of filtered entries (split by type so sign is handled correctly)
+  const filteredSum = useMemo(() => {
+    return filtered.reduce((sum, e) => {
+      const amt = getAmount(e);
+      if (e.type === "INCOME")      return sum + amt;
+      if (e.type === "INVESTMENT")  return sum + amt;
+      return sum - amt; // EXPENSE
+    }, 0);
+  }, [filtered]);
 
   // Unique authors present in the current month — only useful in household mode.
   const authors = useMemo(() => {
@@ -92,7 +105,15 @@ export function HistoryPage({ showHousehold = false, user }) {
     return Array.from(seen.entries()).map(([userId, name]) => ({ userId, name }));
   }, [entries]);
 
-  const hasFilters = typeFilters.size > 0 || necFilters.size > 0 || userFilters.size > 0 || search.trim();
+  // Categories that appear in the current month's entries (respecting type filter but not category filter)
+  const visibleCats = useMemo(() => {
+    let list = entries;
+    if (typeFilters.size > 0) list = list.filter(e => typeFilters.has(e.type.toLowerCase()));
+    const catIds = new Set(list.map(e => e.categoryId).filter(Boolean));
+    return categories.filter(c => catIds.has(c.categoryId));
+  }, [entries, typeFilters, categories]);
+
+  const hasFilters = typeFilters.size > 0 || necFilters.size > 0 || userFilters.size > 0 || !!categoryFilter || search.trim();
 
   const handleDelete = useCallback(async (id) => {
     if (!window.confirm("Delete this entry?")) return;
@@ -116,11 +137,17 @@ export function HistoryPage({ showHousehold = false, user }) {
 
   const monthLabel = formatYearMonth(filterMonth);
 
-  const handleWheel = (e) => {
-    if (!scrollerRef.current) return;
-    e.preventDefault();
-    scrollerRef.current.scrollLeft += e.deltaY + e.deltaX;
-  };
+  // Must be non-passive so preventDefault() actually suppresses vertical page scroll.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      el.scrollLeft += e.deltaY + e.deltaX;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   // Shared inactive chip classes
   const inactiveChip = "bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-neutral-500";
@@ -130,7 +157,7 @@ export function HistoryPage({ showHousehold = false, user }) {
       <h1 className="text-2xl font-bold">History</h1>
 
       {/* Month scroller */}
-      <div ref={scrollerRef} onWheel={handleWheel} className="overflow-x-auto thin-scrollbar pb-1">
+      <div ref={scrollerRef} className="overflow-x-auto thin-scrollbar pb-1">
         <div className="flex gap-2 w-max px-1">
           {activeMonths.map(m => {
             const [y, mo] = m.split("-");
@@ -186,9 +213,15 @@ export function HistoryPage({ showHousehold = false, user }) {
           <button
             key={value}
             onClick={() => {
-              setTypeFilters(t => toggle(t, value));
-              // Clear necessity filter when investment is deselected entirely and it was the only type
-              if (value === "investment") setNecFilters(new Set());
+              setTypeFilters(t => {
+                const next = toggle(t, value);
+                // Clear necessity filters only when investment becomes the sole active type
+                if (value === "investment") {
+                  const onlyInvestment = next.size > 0 && [...next].every(v => v === "investment");
+                  if (onlyInvestment) setNecFilters(new Set());
+                }
+                return next;
+              });
             }}
             className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${typeFilters.has(value) ? active : inactiveChip}`}
           >
@@ -236,9 +269,26 @@ export function HistoryPage({ showHousehold = false, user }) {
         </div>
       )}
 
-      <p className="text-xs text-gray-400">
-        {filtered.length} transaction{filtered.length !== 1 ? "s" : ""}{loading ? " (loading…)" : ""}
-      </p>
+      {/* Category filter — horizontal 2-row chip scroller */}
+      {visibleCats.length > 0 && (
+        <CategoryChips
+          categories={visibleCats}
+          selected={categoryFilter}
+          onSelect={cat => setCategoryFilter(c => c?.categoryId === cat.categoryId ? null : cat)}
+          colorMap={colorMap}
+        />
+      )}
+
+      <div className="flex items-baseline justify-between">
+        <p className="text-xs text-gray-400">
+          {filtered.length} transaction{filtered.length !== 1 ? "s" : ""}{loading ? " (loading…)" : ""}
+        </p>
+        {filtered.length > 0 && (
+          <p className={`text-sm font-semibold tabular-nums ${filteredSum >= 0 ? "text-brand-green" : "text-brand-red"}`}>
+            {filteredSum >= 0 ? "+" : ""}{formatCurrency(filteredSum, currency)}
+          </p>
+        )}
+      </div>
 
       <FeedbackBanner message={fetchErrorHidden ? null : fetchError} type="error" onDismiss={() => setFetchErrorHidden(true)} />
       <FeedbackBanner message={deleteError} type="error" onDismiss={() => setDeleteError(null)} />

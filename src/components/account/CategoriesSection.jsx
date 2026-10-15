@@ -26,6 +26,29 @@ const TAB_COLORS = {
   investment: { btn: "bg-brand-blue",  active: "border-brand-blue text-brand-blue" },
 };
 
+// Defined at module scope so React never creates a new component type on re-renders,
+// which would cause unnecessary unmount/remount of every list row.
+function CategoryRow({ cat, onDelete }) {
+  return (
+    <div className="bg-white dark:bg-neutral-900 px-4 py-3 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <span className="text-xl">{cat.icon || "🙂"}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-900 dark:text-white">{cat.name}</span>
+          {cat.isDefault && (
+            <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">built-in</span>
+          )}
+        </div>
+      </div>
+      {onDelete && (
+        <button onClick={() => onDelete(cat.categoryId)} className="text-xs text-brand-red hover:underline px-2 py-1">
+          Delete
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function CategoriesSection() {
   const {
     categories, loading: catsLoading, error: catsError,
@@ -117,27 +140,6 @@ export function CategoriesSection() {
   const tabCats    = categories.filter(c => c.type === tab || (!c.type && tab === "expense"));
   const builtinCats = tabCats.filter(c =>  c.isDefault);
   const customCats  = tabCats.filter(c => !c.isDefault);
-
-  function CategoryRow({ cat, onDelete }) {
-    return (
-      <div className="bg-white dark:bg-neutral-900 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-xl">{cat.icon || "🙂"}</span>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-900 dark:text-white">{cat.name}</span>
-            {cat.isDefault && (
-              <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">built-in</span>
-            )}
-          </div>
-        </div>
-        {onDelete && (
-          <button onClick={() => onDelete(cat.categoryId)} className="text-xs text-brand-red hover:underline px-2 py-1">
-            Delete
-          </button>
-        )}
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

@@ -3,7 +3,7 @@ import { FeedbackBanner } from "../FeedbackBanner.jsx";
 import { PasswordInput } from "../PasswordInput.jsx";
 import { CurrencyPicker } from "../CurrencyPicker.jsx";
 import { Spinner } from "../Spinner.jsx";
-import { useCurrencies } from "../../hooks/useCurrencies.js";
+import { useCurrenciesContext } from "../../contexts/CurrenciesContext.jsx";
 import { INPUT_CLASS } from "../../utils/styles.js";
 
 const sectionClass = "bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 p-4 space-y-3";
@@ -46,7 +46,7 @@ export function ProfileSection({ user, onUpdateProfile, onChangePassword, onDele
   }
 
   // ── Currency ──────────────────────────────────────────────────────────────
-  const { currencies }                        = useCurrencies();
+  const { currencies }                        = useCurrenciesContext();
   const [localCurrency, setLocalCurrency]     = useState(null);
   const [currencyLoading, setCurrencyLoading] = useState(false);
   const [currencyError, setCurrencyError]     = useState(null);

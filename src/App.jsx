@@ -4,6 +4,7 @@ import { useAuth } from "./hooks/useAuth.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { HouseholdProvider, useHouseholdContext } from "./contexts/HouseholdContext.jsx";
 import { CategoriesProvider, useCategoriesContext } from "./contexts/CategoriesContext.jsx";
+import { CurrenciesProvider } from "./contexts/CurrenciesContext.jsx";
 import { NavBar } from "./components/NavBar.jsx";
 import { PrivateRoute } from "./components/PrivateRoute.jsx";
 import { Spinner } from "./components/Spinner.jsx";
@@ -60,18 +61,20 @@ function AppContent() {
   return (
     <HouseholdProvider refreshProfile={refreshProfile}>
       <CategoriesProvider>
-        <AppRoutes
-          user={user}
-          isAuthenticated={isAuthenticated}
-          logout={logout}
-          theme={theme}
-          toggleTheme={toggleTheme}
-          showPersonalOnly={showPersonalOnly}
-          setShowPersonalOnly={setShowPersonalOnly}
-          changePassword={changePassword}
-          updateProfile={updateProfile}
-          deleteAccount={deleteAccount}
-        />
+        <CurrenciesProvider>
+          <AppRoutes
+            user={user}
+            isAuthenticated={isAuthenticated}
+            logout={logout}
+            theme={theme}
+            toggleTheme={toggleTheme}
+            showPersonalOnly={showPersonalOnly}
+            setShowPersonalOnly={setShowPersonalOnly}
+            changePassword={changePassword}
+            updateProfile={updateProfile}
+            deleteAccount={deleteAccount}
+          />
+        </CurrenciesProvider>
       </CategoriesProvider>
     </HouseholdProvider>
   );

@@ -30,6 +30,10 @@ export function useMonthCache(showHousehold, initialLimit = 6) {
   const [monthCache, setMonthCache]     = useState({});
   const [hasMoreMonths, setHasMoreMonths] = useState(false);
   const fetchedMonths                   = useRef(new Set());
+  // Keep a ref so the household-reset effect always reads the latest initialLimit
+  // without having to list it as a dep (which would cause resets on every resize).
+  const initialLimitRef                 = useRef(initialLimit);
+  useEffect(() => { initialLimitRef.current = initialLimit; }, [initialLimit]);
 
   // Derive the visible slice
   const activeMonths = allMonths.slice(0, visibleCount);
@@ -42,11 +46,12 @@ export function useMonthCache(showHousehold, initialLimit = 6) {
 
   // Fetch all months upfront; reset cache on household toggle.
   useEffect(() => {
+    const limit = initialLimitRef.current;
     logger.info('cache', `household toggle changed (${showHousehold}) — resetting cache`);
     setMonthCache({});
     fetchedMonths.current = new Set();
     setAllMonths(recentMonths(3));
-    setVisibleCount(initialLimit);
+    setVisibleCount(limit);
     setHasMoreMonths(false);
 
     let cancelled = false;
@@ -58,7 +63,7 @@ export function useMonthCache(showHousehold, initialLimit = 6) {
         const sorted = [...all].sort((a, b) => b.localeCompare(a));
         logger.info('cache', `activeMonths loaded: ${sorted.length} months (household=${showHousehold})`);
         setAllMonths(sorted);
-        setHasMoreMonths(sorted.length > initialLimit);
+        setHasMoreMonths(sorted.length > limit);
       })
       .catch((e) => {
         logger.warn('cache', 'Failed to load activeMonths — keeping seed', e?.message);

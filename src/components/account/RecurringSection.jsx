@@ -3,7 +3,7 @@ import { FeedbackBanner } from "../FeedbackBanner.jsx";
 import { Spinner } from "../Spinner.jsx";
 import { CategoryChips } from "../CategoryChips.jsx";
 import { useCategoriesContext } from "../../contexts/CategoriesContext.jsx";
-import { useCurrencies } from "../../hooks/useCurrencies.js";
+import { useCurrenciesContext } from "../../contexts/CurrenciesContext.jsx";
 import { useRecurring } from "../../hooks/useRecurring.js";
 import { createRecurring } from "../../services/recurring.js";
 import { formatCurrency } from "../../utils/money.js";
@@ -55,7 +55,7 @@ function localToday() {
 export function RecurringSection({ user }) {
   const { templates, loading, error, load, update, deactivate, reactivate, remove, clearError } = useRecurring();
   const { categories, colorMap } = useCategoriesContext();
-  const { currencies } = useCurrencies();
+  const { currencies } = useCurrenciesContext();
 
   const [showForm, setShowForm]       = useState(false);
   const [editing, setEditing]         = useState(null); // recurringId being edited
@@ -127,7 +127,7 @@ export function RecurringSection({ user }) {
     const apiType      = { expense: "EXPENSE", income: "INCOME", investment: "INVESTMENT" }[type] ?? "EXPENSE";
     const apiNecessity = type === "expense" ? (necessity === "optional" ? "OPTIONAL" : "NECESSARY") : "NECESSARY";
     return {
-      amount:      { value: parsed, currency },
+      amount:      { value: String(parsed), currency },
       categoryId,
       name:        note.trim() && selectedCategory?.name
                      ? `${note.trim()} - ${selectedCategory.name}`
@@ -154,11 +154,11 @@ export function RecurringSection({ user }) {
     try {
       if (editing) {
         await update(editing, buildPayload());
-        await load();
+        // update() patches state optimistically — no extra load() needed
       } else {
         await createRecurring(buildPayload());
         setShowForm(false);
-        await load();
+        await load(); // load() needed here because createRecurring is called on the service directly
       }
       resetForm();
     } catch (err) {

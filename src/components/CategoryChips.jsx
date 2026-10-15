@@ -1,13 +1,21 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 export function CategoryChips({ categories, selected, onSelect, colorMap = {} }) {
   const scrollerRef = useRef(null);
 
-  const handleWheel = (e) => {
-    if (!scrollerRef.current) return;
-    e.preventDefault();
-    scrollerRef.current.scrollLeft += e.deltaY + e.deltaX;
-  };
+  // Must be non-passive so preventDefault() actually suppresses vertical page scroll.
+  // React's synthetic onWheel is passive by default (since React 17), so we wire it up
+  // manually with { passive: false } instead.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      el.scrollLeft += e.deltaY + e.deltaX;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   const topRow    = categories.filter((_, i) => i % 2 === 0);
   const bottomRow = categories.filter((_, i) => i % 2 !== 0);
@@ -38,7 +46,7 @@ export function CategoryChips({ categories, selected, onSelect, colorMap = {} })
   }
 
   return (
-    <div ref={scrollerRef} onWheel={handleWheel} className="overflow-x-auto thin-scrollbar pb-1">
+    <div ref={scrollerRef} className="overflow-x-auto thin-scrollbar pb-1">
       <div className="flex flex-col gap-2">
         <div className="flex gap-2 w-max">{topRow.map(renderChip)}</div>
         <div className="flex gap-2 w-max">{bottomRow.map(renderChip)}</div>

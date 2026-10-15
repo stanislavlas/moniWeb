@@ -4,7 +4,7 @@ import { CategoryChips } from "../components/CategoryChips.jsx";
 import { FeedbackBanner } from "../components/FeedbackBanner.jsx";
 import { Spinner } from "../components/Spinner.jsx";
 import { useCategoriesContext } from "../contexts/CategoriesContext.jsx";
-import { useCurrencies } from "../hooks/useCurrencies.js";
+import { useCurrenciesContext } from "../contexts/CurrenciesContext.jsx";
 import { createEntry, updateEntry } from "../services/entries.js";
 import { INPUT_CLASS } from "../utils/styles.js";
 import { fromApiNecessity } from "../utils/money.js";
@@ -26,7 +26,7 @@ export function AddPage({ user }) {
 
   const { categories, colorMap } = useCategoriesContext();
 
-  const { currencies } = useCurrencies();
+  const { currencies } = useCurrenciesContext();
 
   const defaultCurrency = editing?.currency || editing?.amount?.currency || user?.currency || "EUR";
 

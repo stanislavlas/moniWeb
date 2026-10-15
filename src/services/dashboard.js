@@ -34,15 +34,16 @@ export function getDashboard(fromDate, toDate, household = false) {
 }
 
 /**
- * Fetch a full year of dashboard data in a single request.
- * Returns pre-split monthly summaries plus annual totals.
+ * Fetch a range-based dashboard with monthly breakdowns.
+ * Returns pre-split monthly summaries, totals, and monthly averages.
  *
- * @param {number}  year      - 4-digit year (e.g. 2026)
- * @param {boolean} household - when true, returns household-scoped data
+ * @param {string}  fromDate  - YYYY-MM-DD (first day of range, inclusive)
+ * @param {string}  toDate    - YYYY-MM-DD (last day of range, inclusive)
+ * @param {boolean} household - when true, returns household-scoped data; omit to default false
  */
-export function getYearDashboard(year, household = false) {
-  const params = new URLSearchParams({ year: String(year) });
+export function getRangeDashboard(fromDate, toDate, household = false) {
+  const params = new URLSearchParams({ fromDate, toDate });
   if (household) params.set("household", "true");
-  logger.info("dashboard", `getYearDashboard (year=${year}, household=${household})`);
+  logger.info("dashboard", `getRangeDashboard (${fromDate} → ${toDate}, household=${household})`);
   return authRequest(`/api/dashboard/year?${params.toString()}`);
 }

@@ -31,6 +31,10 @@ export function useDashboard(showHousehold, initialLimit = 6) {
   const [dashboardCache, setDashboardCache] = useState({});
   const [hasMoreMonths, setHasMoreMonths] = useState(false);
   const fetchedMonths = useRef(new Set());
+  // Keep a ref so the household-reset effect always reads the latest initialLimit
+  // without having to list it as a dep (which would cause resets on every resize).
+  const initialLimitRef = useRef(initialLimit);
+  useEffect(() => { initialLimitRef.current = initialLimit; }, [initialLimit]);
 
   // Derive the visible slice from allMonths + visibleCount
   const activeMonths = allMonths.slice(0, visibleCount);
@@ -45,11 +49,12 @@ export function useDashboard(showHousehold, initialLimit = 6) {
   // Reset the cache first so the reset and fetch are atomic within one effect,
   // eliminating the race where a stale API response could overwrite the reset seed.
   useEffect(() => {
+    const limit = initialLimitRef.current;
     logger.info("dashboard", `household toggle changed (${showHousehold}) — resetting dashboard cache`);
     setDashboardCache({});
     fetchedMonths.current = new Set();
     setAllMonths(recentMonths(3));
-    setVisibleCount(initialLimit);
+    setVisibleCount(limit);
     setHasMoreMonths(false);
 
     let cancelled = false;
@@ -61,7 +66,7 @@ export function useDashboard(showHousehold, initialLimit = 6) {
         const sorted = [...all].sort((a, b) => b.localeCompare(a));
         logger.info("dashboard", `activeMonths loaded: ${sorted.length} months (household=${showHousehold})`);
         setAllMonths(sorted);
-        setHasMoreMonths(sorted.length > initialLimit);
+        setHasMoreMonths(sorted.length > limit);
       })
       .catch(e => {
         logger.warn("dashboard", "Failed to load activeMonths — keeping seed", e?.message);

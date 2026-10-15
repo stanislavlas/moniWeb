@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { useCategoriesContext } from "../contexts/CategoriesContext.jsx";
 import { useDashboard } from "../hooks/useDashboard.js";
 import { Spinner } from "../components/Spinner.jsx";
@@ -63,18 +63,16 @@ export function MonthOverviewPage({ user, showHousehold = false }) {
     Math.max(...chartMonths.map(m => Math.max(m.income, m.expenses + m.invested)), 1),
   [chartMonths]);
 
-  // Measure container width once on first render — fixed after that
+  // Measure container width once after first layout paint.
+  // useLayoutEffect with [] runs exactly once after mount, before the browser paints,
+  // avoiding the render-loop risk of a bare useEffect with no dep array.
   const cardRef      = useRef(null);
   const [colW, setColW] = useState(COL_W_FALLBACK);
-  const measuredRef  = useRef(false);
-  useEffect(() => {
-    if (measuredRef.current || !cardRef.current) return;
+  useLayoutEffect(() => {
+    if (!cardRef.current) return;
     const w = cardRef.current.getBoundingClientRect().width;
-    if (w > 0) {
-      measuredRef.current = true;
-      setColW(colWFromWidth(w, INITIAL_LIMIT));
-    }
-  }); // no dep array — runs after every render until measured
+    if (w > 0) setColW(colWFromWidth(w, INITIAL_LIMIT));
+  }, []);
   const barW = Math.floor((colW - BAR_GAP) / 2);
 
   // Scroll handler: horizontal only, suppress vertical page scroll.
