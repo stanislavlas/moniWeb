@@ -53,7 +53,7 @@ export function HistoryPage({ showHousehold = false, user }) {
   const [typeFilters, setTypeFilters]     = useState(new Set());
   const [necFilters, setNecFilters]       = useState(new Set());
   const [userFilters, setUserFilters]     = useState(new Set());
-  const [categoryFilter, setCategoryFilter] = useState(null); // single category object or null
+  const [categoryFilter, setCategoryFilter] = useState(new Set()); // Set of categoryId strings
 
   // Reset dismiss state when the month changes (new fetch, new potential error)
   useEffect(() => { setFetchErrorHidden(false); }, [filterMonth]);
@@ -75,7 +75,7 @@ export function HistoryPage({ showHousehold = false, user }) {
     if (typeFilters.size > 0) list = list.filter(e => typeFilters.has(e.type.toLowerCase()));
     if (necFilters.size  > 0) list = list.filter(e => necFilters.has(fromApiNecessity(e.necessity)));
     if (userFilters.size > 0) list = list.filter(e => userFilters.has(e.userId));
-    if (categoryFilter)       list = list.filter(e => e.categoryId === categoryFilter.categoryId);
+    if (categoryFilter.size > 0) list = list.filter(e => categoryFilter.has(e.categoryId));
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(e => {
@@ -113,7 +113,7 @@ export function HistoryPage({ showHousehold = false, user }) {
     return categories.filter(c => catIds.has(c.categoryId));
   }, [entries, typeFilters, categories]);
 
-  const hasFilters = typeFilters.size > 0 || necFilters.size > 0 || userFilters.size > 0 || !!categoryFilter || search.trim();
+  const hasFilters = typeFilters.size > 0 || necFilters.size > 0 || userFilters.size > 0 || categoryFilter.size > 0 || search.trim();
 
   const handleDelete = useCallback(async (id) => {
     if (!window.confirm("Delete this entry?")) return;
@@ -274,7 +274,7 @@ export function HistoryPage({ showHousehold = false, user }) {
         <CategoryChips
           categories={visibleCats}
           selected={categoryFilter}
-          onSelect={cat => setCategoryFilter(c => c?.categoryId === cat.categoryId ? null : cat)}
+          onSelect={cat => setCategoryFilter(prev => toggle(prev, cat.categoryId))}
           colorMap={colorMap}
         />
       )}

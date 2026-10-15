@@ -20,17 +20,20 @@ function yearRange(year) {
 
 /**
  * Returns { fromDate, toDate } YYYY-MM-DD strings for a rolling last-12-months window.
- * Uses local date arithmetic throughout to avoid UTC/local timezone mismatch.
+ * fromDate = the 1st of the current month one year ago (inclusive).
+ * toDate   = today.
+ * Example: called on Oct 15 2026 → fromDate="2025-10-01", toDate="2026-10-15"
  */
 function trailing12Range() {
   const today = new Date();
   const y = today.getFullYear();
   const m = today.getMonth(); // 0-indexed
   const d = today.getDate();
-  const toDate    = `${y}-${pad(m + 1)}-${pad(d)}`;
-  const fromYear  = m === 0 ? y - 1 : y;
-  const fromMonth = m === 0 ? 12 : m; // 1-indexed, wrap Jan → Dec of prev year
-  return { fromDate: `${fromYear}-${pad(fromMonth)}-01`, toDate };
+  const toDate  = `${y}-${pad(m + 1)}-${pad(d)}`;
+  // Go back exactly 12 months: same month, previous year (Date handles Jan → Jan prev year correctly)
+  const from    = new Date(y - 1, m, 1);
+  const fromDate = `${from.getFullYear()}-${pad(from.getMonth() + 1)}-01`;
+  return { fromDate, toDate };
 }
 
 /** Returns true if the given YYYY entry date falls within the trailing-12 window. */
