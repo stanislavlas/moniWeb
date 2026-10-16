@@ -91,7 +91,7 @@ export function HistoryPage({ showHousehold = false, user }) {
     return filtered.reduce((sum, e) => {
       const amt = getAmount(e);
       if (e.type === "INCOME")      return sum + amt;
-      if (e.type === "INVESTMENT")  return sum + amt;
+      if (e.type === "INVESTMENT")  return sum - amt;
       return sum - amt; // EXPENSE
     }, 0);
   }, [filtered]);
@@ -222,6 +222,9 @@ export function HistoryPage({ showHousehold = false, user }) {
                 }
                 return next;
               });
+              // Clear category filter when type changes — selected categories may belong
+              // to the previous type and would produce zero results in the new type.
+              setCategoryFilter(new Set());
             }}
             className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${typeFilters.has(value) ? active : inactiveChip}`}
           >
